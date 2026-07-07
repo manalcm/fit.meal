@@ -47,7 +47,16 @@ export interface ParseResult {
 function toNumber(value: string | undefined): number | null {
   if (value === undefined) return null
   const trimmed = value.trim()
-  if (trimmed === '') return null
+  if (trimmed === '') return 0
+  const normalizedToken = trimmed
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '')
+    .replace(/\.$/, '')
+  if (['tr', 'traza', 'trazas', '-', '_', '__', '___', 's/d', 'sd', 'na', 'n/a'].includes(normalizedToken)) {
+    return 0
+  }
   const normalized = trimmed.replace(',', '.')
   const n = Number(normalized)
   return Number.isFinite(n) ? n : null
