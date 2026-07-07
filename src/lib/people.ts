@@ -36,3 +36,9 @@ export async function createPerson(input: PersonInput): Promise<Person> {
   if (error) throw error
   return data
 }
+
+export async function deletePerson(id: string): Promise<void> {
+  const householdId = requireActiveHouseholdId()
+  const { error } = await supabase.from('people').delete().eq('id', id).eq('household_id', householdId)
+  if (error) throw error
+}

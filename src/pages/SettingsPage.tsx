@@ -5,12 +5,14 @@ import { PersonCard } from '../components/PersonCard'
 import type { Person } from '../types/database'
 import { useAuth } from '../lib/AuthContext'
 import { useHousehold } from '../lib/HouseholdContext'
+import { usePerson } from '../lib/PersonContext'
 
 const COLORS = ['#C1613A', '#7E9468', '#B98A3E', '#5B7145']
 
 export function SettingsPage() {
   const { user, signOut } = useAuth()
   const { activeHousehold } = useHousehold()
+  const { reload: reloadSelectedPerson } = usePerson()
   const [people, setPeople] = useState<Person[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
@@ -34,6 +36,12 @@ export function SettingsPage() {
 
   function handleSaved(updated: Person) {
     setPeople((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+    void reloadSelectedPerson()
+  }
+
+  function handleDeleted(personId: string) {
+    setPeople((prev) => prev.filter((p) => p.id !== personId))
+    void reloadSelectedPerson()
   }
 
   async function handleCreatePerson() {
@@ -96,7 +104,7 @@ export function SettingsPage() {
 
       <div className="flex flex-col gap-3">
         {people.map((person) => (
-          <PersonCard key={person.id} person={person} onSaved={handleSaved} />
+          <PersonCard key={person.id} person={person} onSaved={handleSaved} onDeleted={handleDeleted} />
         ))}
       </div>
     </div>

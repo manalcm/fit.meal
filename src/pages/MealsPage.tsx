@@ -11,7 +11,7 @@ export function MealsPage() {
   const [meals, setMeals] = useState<MealWithLines[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [filter, setFilter] = useState<MealType | 'todas'>('todas')
+  const [filter, setFilter] = useState<MealType>(MEAL_TYPES[0])
   const navigate = useNavigate()
   const { activeHousehold } = useHousehold()
 
@@ -24,7 +24,6 @@ export function MealsPage() {
   }, [activeHousehold?.id])
 
   const filtered = useMemo(() => {
-    if (filter === 'todas') return meals
     return meals.filter((m) => m.meal_types.includes(filter))
   }, [meals, filter])
 
@@ -32,16 +31,16 @@ export function MealsPage() {
     <div className="mx-auto max-w-2xl px-4 pt-4 pb-28">
       <p className="mb-3.5 font-serif text-[27px] leading-none font-medium text-ink italic">Platos</p>
 
-      <div className="mb-3.5 flex w-full gap-2 pb-1">
-        {(['todas', ...MEAL_TYPES] as const).map((t) => (
+      <div className="mb-3.5 grid w-full grid-cols-4 gap-2 pb-1">
+        {MEAL_TYPES.map((t) => (
           <button
             key={t}
             onClick={() => setFilter(t)}
-            className={`min-w-0 flex-1 rounded-full px-2 py-1.5 text-sm font-bold whitespace-nowrap ${
+            className={`min-w-0 rounded-full px-2 py-1.5 text-sm font-bold whitespace-nowrap ${
               filter === t ? 'bg-accent text-white' : 'bg-surface text-muted'
             }`}
           >
-            {t === 'todas' ? 'Todas' : MEAL_TYPE_LABELS[t]}
+            {MEAL_TYPE_LABELS[t]}
           </button>
         ))}
       </div>

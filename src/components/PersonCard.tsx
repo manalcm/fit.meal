@@ -1,16 +1,17 @@
 import { useState } from 'react'
 import type { Person } from '../types/database'
-import { updatePerson, type PersonInput } from '../lib/people'
+import { deletePerson, updatePerson, type PersonInput } from '../lib/people'
 import { getErrorMessage } from '../lib/errors'
 
 interface Props {
   person: Person
   onSaved: (person: Person) => void
+  onDeleted: (personId: string) => void
 }
 
 const COLOR_PRESETS = ['#C1613A', '#7E9468', '#B98A3E', '#8B3E24', '#5B7145', '#4C6B8A']
 
-export function PersonCard({ person, onSaved }: Props) {
+export function PersonCard({ person, onSaved, onDeleted }: Props) {
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(person.name)
   const [color, setColor] = useState(person.color)
@@ -20,6 +21,7 @@ export function PersonCard({ person, onSaved }: Props) {
   const [fat, setFat] = useState(String(person.target_fat))
   const [water, setWater] = useState(String(person.target_water_ml))
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
 
   function startEditing() {
@@ -54,6 +56,22 @@ export function PersonCard({ person, onSaved }: Props) {
       setError(getErrorMessage(err))
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleDelete() {
+    const confirmed = window.confirm(`Eliminar ${person.name}? Tambien se borrara su plan asociado.`)
+    if (!confirmed) return
+
+    setDeleting(true)
+    setError('')
+    try {
+      await deletePerson(person.id)
+      onDeleted(person.id)
+    } catch (err) {
+      setError(getErrorMessage(err))
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -164,16 +182,25 @@ export function PersonCard({ person, onSaved }: Props) {
 
       {error && <p className="text-sm text-over">{error}</p>}
 
+      <button
+        onClick={handleDelete}
+        disabled={deleting || saving}
+        className="rounded-2xl border border-over/20 bg-surface py-2.5 font-bold text-over disabled:opacity-50"
+      >
+        {deleting ? 'Eliminando...' : 'Eliminar persona'}
+      </button>
+
       <div className="flex gap-2">
         <button
           onClick={() => setEditing(false)}
+          disabled={deleting}
           className="flex-1 rounded-2xl bg-bg py-2.5 font-bold text-muted"
         >
           Cancelar
         </button>
         <button
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || deleting}
           className="flex-1 rounded-2xl bg-ink py-2.5 font-bold text-cream disabled:opacity-50"
         >
           {saving ? 'Guardando…' : 'Guardar'}

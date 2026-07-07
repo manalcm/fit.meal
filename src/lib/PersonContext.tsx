@@ -31,7 +31,13 @@ export function PersonProvider({ children }: { children: ReactNode }) {
     setPeople(list)
     setSelectedId((prev) => {
       if (prev && list.some((p) => p.id === prev)) return prev
-      return list[0]?.id ?? null
+      const nextId = list[0]?.id ?? null
+      if (nextId) {
+        localStorage.setItem(storageKey, nextId)
+      } else {
+        localStorage.removeItem(storageKey)
+      }
+      return nextId
     })
   }
 
