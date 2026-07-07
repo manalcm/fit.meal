@@ -19,7 +19,7 @@ const TABS = [
 
 export function BottomNav() {
   return (
-    <nav className="fixed inset-x-4 bottom-4 z-10 mx-auto flex max-w-md gap-1 rounded-[22px] bg-surface p-1.5 shadow-[0_16px_34px_-12px_rgba(35,48,31,0.3)]">
+    <nav className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-md gap-1 rounded-[22px] bg-surface p-1.5 shadow-[0_16px_34px_-12px_rgba(35,48,31,0.3)]">
       {TABS.map(({ to, label, Icon }) => (
         <NavLink
           key={to}

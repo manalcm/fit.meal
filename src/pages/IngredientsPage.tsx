@@ -25,10 +25,12 @@ interface IngredientRowProps {
 function IngredientRow({ ingredient, open, onOpen, onClose, onEdit, onDelete }: IngredientRowProps) {
   const startX = useRef<number | null>(null)
   const startY = useRef<number | null>(null)
+  const handledSwipe = useRef(false)
 
   function handlePointerDown(e: React.PointerEvent) {
     startX.current = e.clientX
     startY.current = e.clientY
+    handledSwipe.current = false
   }
 
   function handlePointerUp(e: React.PointerEvent) {
@@ -39,8 +41,18 @@ function IngredientRow({ ingredient, open, onOpen, onClose, onEdit, onDelete }: 
     startY.current = null
 
     if (Math.abs(dx) < 36 || Math.abs(dx) < Math.abs(dy)) return
+    handledSwipe.current = true
     if (dx < 0) onOpen()
     else onClose()
+  }
+
+  function handleClick() {
+    if (handledSwipe.current) {
+      handledSwipe.current = false
+      return
+    }
+    if (open) onClose()
+    else onEdit()
   }
 
   return (
@@ -55,7 +67,7 @@ function IngredientRow({ ingredient, open, onOpen, onClose, onEdit, onDelete }: 
       <button
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
-        onClick={() => (open ? onClose() : onEdit())}
+        onClick={handleClick}
         className="relative z-10 flex w-full touch-pan-y items-center gap-3 rounded-2xl bg-surface p-3 text-left transition-transform duration-200"
         style={{ transform: open ? 'translateX(-96px)' : 'translateX(0)' }}
       >
