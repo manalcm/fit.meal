@@ -1,0 +1,5 @@
+nombre,categoria,kcal_100g,proteina_100g,carbos_100g,grasa_100g,precio_kg,unidad_por_defecto,gramos_por_unidad
+Pechuga de pollo,carne,165,31,0,3.6,6.5,gramos,
+Arroz blanco,cereal_pan,349,7.1,78,0.6,1.2,gramos,
+Huevo,huevo,155,13,1.1,11,3.5,unidad,60
+Plátano,fruta,89,1.1,22.8,0.3,1.4,unidad,120

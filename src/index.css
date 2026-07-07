@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Manrope", system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-serif: "Newsreader", Georgia, serif;
+
+  /* Texto y superficies */
+  --color-ink: #23301f;
+  --color-muted: #8a7f68;
+  --color-cream: #f7f2e7;
+  --color-surface: #fffcf6;
+  --color-bg: #efe7d3;
+  --color-track: #e4dac0;
+
+  /* Acento (persona por defecto / CTA) y salvia (segunda persona / éxito) */
+  --color-accent: #c1613a;
+  --color-accent-dark: #93472a;
+  --color-sage: #7e9468;
+  --color-sage-dark: #5b7145;
+  --color-over: #a8432a;
+
+  /* Colores de etiqueta por franja de comida */
+  --color-brick: #8b3e24;
+  --color-gold: #b98a3e;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-bg);
+  font-family: var(--font-sans);
+  /* Respeta el notch / barra de gestos en móviles (PWA a pantalla completa) */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-transition {
+  animation: page-fade-in 0.2s ease-out;
+}
