@@ -2,7 +2,12 @@ import { useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { parseIngredientsCsv, type ParseResult } from '../lib/csvImport'
-import { bulkUpsertIngredients, listIngredientNames, listIngredients } from '../lib/ingredients'
+import {
+  bulkUpsertIngredients,
+  deleteAllIngredients,
+  listIngredientNames,
+  listIngredients,
+} from '../lib/ingredients'
 import { BASIC_INGREDIENTS } from '../data/basicIngredients'
 import { CATEGORY_LABELS } from '../data/categories'
 import { getErrorMessage } from '../lib/errors'
@@ -21,6 +26,8 @@ export function ImportIngredientsPage() {
   const [error, setError] = useState('')
   const [basicsMessage, setBasicsMessage] = useState('')
   const [exporting, setExporting] = useState(false)
+  const [deletingAll, setDeletingAll] = useState(false)
+  const [deleteMessage, setDeleteMessage] = useState('')
 
   function normalizeName(name: string): string {
     return name.trim().toLowerCase().replace(/\s+/g, ' ')
@@ -62,6 +69,29 @@ export function ImportIngredientsPage() {
       setError(getErrorMessage(err))
     } finally {
       setExporting(false)
+    }
+  }
+
+  async function handleDeleteAllIngredients() {
+    const confirmed = confirm(
+      'Esto borrara todos tus ingredientes y tambien los ingredientes dentro de tus recetas. Tus platos seguiran existiendo, pero sin lista de ingredientes. Quieres continuar?',
+    )
+    if (!confirmed) return
+
+    const confirmedAgain = confirm('Ultima confirmacion: seguro que quieres vaciar todos los ingredientes?')
+    if (!confirmedAgain) return
+
+    setDeletingAll(true)
+    setDeleteMessage('')
+    setError('')
+    try {
+      await deleteAllIngredients()
+      setExistingCount(0)
+      setDeleteMessage('Hecho: se han eliminado todos los ingredientes de esta cuenta.')
+    } catch (err) {
+      setError(getErrorMessage(err))
+    } finally {
+      setDeletingAll(false)
     }
   }
 
@@ -164,6 +194,21 @@ export function ImportIngredientsPage() {
               Elegir archivo CSV
               <input type="file" accept=".csv,text/csv" className="hidden" onChange={handleFile} />
             </label>
+          </div>
+
+          <div className="rounded-2xl bg-surface p-4">
+            <p className="mb-2 font-bold text-over">Vaciar ingredientes</p>
+            <p className="mb-3 text-sm text-muted">
+              Elimina todos los ingredientes de esta cuenta para empezar de cero antes de importar un CSV nuevo.
+            </p>
+            <button
+              onClick={handleDeleteAllIngredients}
+              disabled={deletingAll}
+              className="w-full rounded-2xl bg-over py-3 font-bold text-white disabled:opacity-50"
+            >
+              {deletingAll ? 'Eliminando...' : 'Eliminar todos los ingredientes'}
+            </button>
+            {deleteMessage && <p className="mt-2 text-sm text-muted">{deleteMessage}</p>}
           </div>
 
           <div className="rounded-2xl bg-surface p-4">

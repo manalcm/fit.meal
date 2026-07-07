@@ -57,6 +57,18 @@ export async function deleteIngredient(id: string): Promise<void> {
   if (error) throw error
 }
 
+export async function deleteAllIngredients(): Promise<void> {
+  const householdId = requireActiveHouseholdId()
+  const { error: mealLinesError } = await supabase
+    .from('meal_ingredients')
+    .delete()
+    .eq('household_id', householdId)
+  if (mealLinesError) throw mealLinesError
+
+  const { error } = await supabase.from('ingredients').delete().eq('household_id', householdId)
+  if (error) throw error
+}
+
 export async function listIngredientNames(): Promise<Set<string>> {
   const householdId = requireActiveHouseholdId()
   const { data, error } = await supabase

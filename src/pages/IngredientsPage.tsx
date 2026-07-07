@@ -22,6 +22,8 @@ interface IngredientRowProps {
   onDelete: () => void
 }
 
+const INGREDIENT_RENDER_LIMIT = 120
+
 function IngredientRow({ ingredient, open, onOpen, onClose, onEdit, onDelete }: IngredientRowProps) {
   const startX = useRef<number | null>(null)
   const startY = useRef<number | null>(null)
@@ -119,6 +121,7 @@ export function IngredientsPage() {
     if (!q) return ingredients
     return ingredients.filter((i) => i.name.toLowerCase().includes(q))
   }, [ingredients, search])
+  const visibleIngredients = useMemo(() => filtered.slice(0, INGREDIENT_RENDER_LIMIT), [filtered])
 
   async function handleSave(input: IngredientInput) {
     if (editing === 'new') {
@@ -171,7 +174,7 @@ export function IngredientsPage() {
 
       {!loading && !error && (
         <ul className="flex flex-col gap-2">
-          {filtered.map((ing) => (
+          {visibleIngredients.map((ing) => (
             <li key={ing.id}>
               <IngredientRow
                 ingredient={ing}
@@ -183,6 +186,11 @@ export function IngredientsPage() {
               />
             </li>
           ))}
+          {filtered.length > visibleIngredients.length && (
+            <p className="rounded-2xl bg-surface p-3 text-center text-sm text-muted">
+              Mostrando {visibleIngredients.length} de {filtered.length}. Usa el buscador para encontrar uno concreto.
+            </p>
+          )}
           {filtered.length === 0 && (
             <p className="py-8 text-center text-muted">
               No hay ingredientes {search && 'que coincidan con la búsqueda'}.
