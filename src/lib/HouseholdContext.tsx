@@ -5,6 +5,7 @@ import { setActiveHouseholdId } from './householdScope'
 import { useAuth } from './AuthContext'
 
 const STORAGE_KEY = 'fitmeal:activeHouseholdId'
+const LEGACY_HOUSEHOLD_ID = '00000000-0000-0000-0000-000000000001'
 
 export interface Household {
   id: string
@@ -25,7 +26,6 @@ interface HouseholdContextValue {
   selectHousehold: (id: string) => void
   reload: () => Promise<void>
   createHousehold: (name: string) => Promise<void>
-  joinHousehold: (code: string) => Promise<void>
 }
 
 const HouseholdContext = createContext<HouseholdContextValue | null>(null)
@@ -49,7 +49,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     if (error) throw error
     return ((data ?? []) as unknown as MembershipRow[])
       .map(normalizeHousehold)
-      .filter((h): h is Household => Boolean(h))
+      .filter((h): h is Household => h !== null && h.id !== LEGACY_HOUSEHOLD_ID)
   }
 
   async function reload() {
@@ -62,8 +62,11 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
 
     let list = await fetchHouseholds()
     if (list.length === 0) {
-      const { error } = await supabase.rpc('claim_existing_fitmeal_household')
-      if (!error) list = await fetchHouseholds()
+      const { error } = await supabase.rpc('create_household_for_current_user', {
+        household_name: 'Mi cuenta',
+      })
+      if (error) throw error
+      list = await fetchHouseholds()
     }
 
     setHouseholds(list)
@@ -103,15 +106,6 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         const { data, error } = await supabase.rpc('create_household_for_current_user', {
           household_name: name,
         })
-        if (error) throw error
-        const household = data as Household
-        await reload()
-        setActiveId(household.id)
-        localStorage.setItem(STORAGE_KEY, household.id)
-        setActiveHouseholdId(household.id)
-      },
-      async joinHousehold(code) {
-        const { data, error } = await supabase.rpc('join_household_by_code', { code })
         if (error) throw error
         const household = data as Household
         await reload()

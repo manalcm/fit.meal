@@ -3,6 +3,14 @@ import type { FormEvent } from 'react'
 import { useAuth } from '../lib/AuthContext'
 import { getErrorMessage } from '../lib/errors'
 
+function friendlyAuthError(err: unknown): string {
+  const message = getErrorMessage(err)
+  if (message.toLowerCase().includes('invalid login credentials')) {
+    return 'Email o contraseña incorrectos. Si acabas de crear la cuenta, confirma el correo o desactiva la confirmación de email en Supabase.'
+  }
+  return message
+}
+
 export function AuthPage() {
   const { signIn, signUp } = useAuth()
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
@@ -23,11 +31,11 @@ export function AuthPage() {
       } else {
         const needsEmailConfirmation = await signUp(email.trim(), password)
         if (needsEmailConfirmation) {
-          setNotice('Te hemos enviado un correo para confirmar la cuenta.')
+          setNotice('Cuenta creada. Revisa tu correo para confirmarla antes de entrar.')
         }
       }
     } catch (err) {
-      setError(getErrorMessage(err))
+      setError(friendlyAuthError(err))
     } finally {
       setLoading(false)
     }
@@ -40,7 +48,7 @@ export function AuthPage() {
           fit<span className="text-accent">·</span>meal
         </p>
         <p className="mb-5 text-sm text-muted">
-          {mode === 'signin' ? 'Entra para ver tu planificación.' : 'Crea tu cuenta y tu hogar compartido.'}
+          {mode === 'signin' ? 'Entra para ver tu planificación.' : 'Crea tu cuenta privada.'}
         </p>
 
         <div className="mb-4 grid grid-cols-2 rounded-2xl bg-bg p-1">

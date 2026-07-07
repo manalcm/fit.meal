@@ -228,11 +228,6 @@ begin
   insert into public.household_members (household_id, user_id, role)
   values (new_household.id, auth.uid(), 'owner');
 
-  insert into public.people (household_id, name, color, target_kcal, target_protein, target_carbs, target_fat, target_water_ml)
-  values
-    (new_household.id, 'Persona 1', '#C1613A', 2200, 140, 220, 70, 2500),
-    (new_household.id, 'Persona 2', '#7E9468', 1800, 110, 180, 55, 2000);
-
   return new_household;
 end;
 $$;

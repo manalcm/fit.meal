@@ -25,3 +25,14 @@ export async function updatePerson(id: string, input: PersonInput): Promise<Pers
   if (error) throw error
   return data
 }
+
+export async function createPerson(input: PersonInput): Promise<Person> {
+  const householdId = requireActiveHouseholdId()
+  const { data, error } = await supabase
+    .from('people')
+    .insert({ ...input, household_id: householdId })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}

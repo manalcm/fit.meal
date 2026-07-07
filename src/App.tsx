@@ -12,7 +12,6 @@ import { PersonProvider } from './lib/PersonContext'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import { HouseholdProvider, useHousehold } from './lib/HouseholdContext'
 import { AuthPage } from './pages/AuthPage'
-import { HouseholdSetupPage } from './pages/HouseholdSetupPage'
 
 function AnimatedRoutes() {
   const location = useLocation()
@@ -50,7 +49,7 @@ function HouseholdGate() {
   const { activeHousehold, loading } = useHousehold()
 
   if (loading) return <p className="min-h-dvh bg-bg py-12 text-center text-muted">Cargando...</p>
-  if (!activeHousehold) return <HouseholdSetupPage />
+  if (!activeHousehold) return <p className="min-h-dvh bg-bg py-12 text-center text-muted">Preparando cuenta...</p>
 
   return (
     <BrowserRouter>
