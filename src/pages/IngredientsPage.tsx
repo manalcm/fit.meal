@@ -139,7 +139,7 @@ export function IngredientsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 pt-4 pb-28">
+    <div className="mx-auto max-w-2xl px-4 pt-4 pb-40">
       <div className="mb-3.5 flex items-center justify-between">
         <p className="font-serif text-[27px] leading-none font-medium text-ink italic">Ingredientes</p>
         <Link to="/ingredientes/importar" className="rounded-full bg-surface px-4 py-1.5 text-sm font-bold text-accent">
@@ -181,7 +181,7 @@ export function IngredientsPage() {
 
       <button
         onClick={() => setEditing('new')}
-        className="fixed right-4 bottom-24 flex h-14 w-14 items-center justify-center rounded-full bg-ink text-3xl text-cream shadow-[0_16px_34px_-12px_rgba(35,48,31,0.4)] active:scale-95"
+        className="fixed right-4 bottom-36 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-ink text-3xl text-cream shadow-[0_16px_34px_-12px_rgba(35,48,31,0.4)] active:scale-95"
         aria-label="Añadir ingrediente"
       >
         +
