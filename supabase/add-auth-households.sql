@@ -4,7 +4,7 @@
 create table if not exists public.households (
   id uuid primary key default gen_random_uuid(),
   name text not null default 'Mi hogar',
-  invite_code text not null unique default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 10)),
+  invite_code text not null unique default upper(substr(md5(random()::text || clock_timestamp()::text), 1, 10)),
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
 );
