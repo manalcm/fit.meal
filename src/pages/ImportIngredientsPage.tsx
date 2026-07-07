@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { parseIngredientsCsv, type ParseResult } from '../lib/csvImport'
-import { bulkUpsertIngredients, listIngredientNames } from '../lib/ingredients'
+import { bulkUpsertIngredients, listIngredientNames, listIngredients } from '../lib/ingredients'
 import { BASIC_INGREDIENTS } from '../data/basicIngredients'
 import { CATEGORY_LABELS } from '../data/categories'
 import { getErrorMessage } from '../lib/errors'
@@ -20,6 +20,50 @@ export function ImportIngredientsPage() {
   )
   const [error, setError] = useState('')
   const [basicsMessage, setBasicsMessage] = useState('')
+  const [exporting, setExporting] = useState(false)
+
+  function normalizeName(name: string): string {
+    return name.trim().toLowerCase().replace(/\s+/g, ' ')
+  }
+
+  function csvNumber(value: number): string {
+    return String(value).replace('.', ',')
+  }
+
+  function escapeCsv(value: string): string {
+    return /[;"\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+  }
+
+  async function handleExportCsv() {
+    setExporting(true)
+    setError('')
+    try {
+      const ingredients = await listIngredients()
+      const lines = [
+        'Alimento;kcal;proteina;carbohidratos;grasa',
+        ...ingredients.map((ingredient) =>
+          [
+            escapeCsv(ingredient.name),
+            csvNumber(ingredient.kcal_per_100g),
+            csvNumber(ingredient.protein_per_100g),
+            csvNumber(ingredient.carbs_per_100g),
+            csvNumber(ingredient.fat_per_100g),
+          ].join(';'),
+        ),
+      ]
+      const blob = new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'fitmeal-ingredientes.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(getErrorMessage(err))
+    } finally {
+      setExporting(false)
+    }
+  }
 
   async function handleFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -30,7 +74,7 @@ export function ImportIngredientsPage() {
       const text = await file.text()
       const parsed = parseIngredientsCsv(text)
       const existingNames = await listIngredientNames()
-      const conflicts = parsed.rows.filter((r) => existingNames.has(r.input.name.toLowerCase()))
+      const conflicts = parsed.rows.filter((r) => existingNames.has(normalizeName(r.input.name)))
       setExistingCount(conflicts.length)
       setResult(parsed)
       setStep('vista-previa')
@@ -84,12 +128,28 @@ export function ImportIngredientsPage() {
         </Link>
       </div>
       <p className="mb-1 font-serif text-[27px] leading-none font-medium text-ink italic">
-        Importar ingredientes
+        CSV
       </p>
+      <p className="mb-3 text-sm text-muted">Importa ingredientes nuevos o exporta tu lista actual.</p>
 
       {step === 'elegir' && (
         <div className="mt-3 flex flex-col gap-4">
           <div className="rounded-2xl bg-surface p-4">
+            <p className="mb-2 font-bold text-ink">Exportar</p>
+            <p className="mb-3 text-sm text-muted">
+              Descarga todos tus ingredientes en el formato limpio de la app.
+            </p>
+            <button
+              onClick={handleExportCsv}
+              disabled={exporting}
+              className="w-full rounded-2xl bg-bg py-3 font-bold text-accent disabled:opacity-50"
+            >
+              {exporting ? 'Preparando...' : 'Exportar CSV'}
+            </button>
+          </div>
+
+          <div className="rounded-2xl bg-surface p-4">
+            <p className="mb-2 font-bold text-ink">Importar</p>
             <p className="mb-2 text-sm text-ink">
               Sube un archivo CSV con las columnas:{' '}
               <code className="text-xs text-muted">Alimento, kcal, proteina, carbohidratos, grasa</code>

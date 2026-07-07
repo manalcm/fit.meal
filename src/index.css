@@ -32,12 +32,14 @@ html,
 body,
 #root {
   height: 100%;
+  touch-action: manipulation;
 }
 
 body {
   margin: 0;
   background-color: var(--color-bg);
   font-family: var(--font-sans);
+  overscroll-behavior: none;
   /* Respeta el notch / barra de gestos en móviles (PWA a pantalla completa) */
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);

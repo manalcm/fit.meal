@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Ingredient } from '../types/database'
 import {
@@ -13,6 +13,70 @@ import { IngredientFormModal } from '../components/IngredientFormModal'
 import { getErrorMessage } from '../lib/errors'
 import { useHousehold } from '../lib/HouseholdContext'
 
+interface IngredientRowProps {
+  ingredient: Ingredient
+  open: boolean
+  onOpen: () => void
+  onClose: () => void
+  onEdit: () => void
+  onDelete: () => void
+}
+
+function IngredientRow({ ingredient, open, onOpen, onClose, onEdit, onDelete }: IngredientRowProps) {
+  const startX = useRef<number | null>(null)
+  const startY = useRef<number | null>(null)
+
+  function handlePointerDown(e: React.PointerEvent) {
+    startX.current = e.clientX
+    startY.current = e.clientY
+  }
+
+  function handlePointerUp(e: React.PointerEvent) {
+    if (startX.current == null || startY.current == null) return
+    const dx = e.clientX - startX.current
+    const dy = e.clientY - startY.current
+    startX.current = null
+    startY.current = null
+
+    if (Math.abs(dx) < 36 || Math.abs(dx) < Math.abs(dy)) return
+    if (dx < 0) onOpen()
+    else onClose()
+  }
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl">
+      <button
+        type="button"
+        onClick={onDelete}
+        className="absolute inset-y-0 right-0 flex w-24 items-center justify-center rounded-2xl bg-over text-sm font-bold text-white"
+      >
+        Eliminar
+      </button>
+      <button
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onClick={() => (open ? onClose() : onEdit())}
+        className="relative z-10 flex w-full touch-pan-y items-center gap-3 rounded-2xl bg-surface p-3 text-left transition-transform duration-200"
+        style={{ transform: open ? 'translateX(-96px)' : 'translateX(0)' }}
+      >
+        <span className="flex h-9 w-9 flex-none items-center justify-center rounded-[10px] bg-bg font-serif text-base font-semibold text-accent italic">
+          {ingredient.name.charAt(0)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-bold text-ink">{ingredient.name}</p>
+          <p className="text-xs text-sage">{CATEGORY_LABELS[ingredient.category]}</p>
+        </div>
+        <div className="flex-none text-right text-sm text-muted">
+          <p>{ingredient.kcal_per_100g} kcal</p>
+          <p className="text-xs">
+            P {ingredient.protein_per_100g} · C {ingredient.carbs_per_100g} · G {ingredient.fat_per_100g}
+          </p>
+        </div>
+      </button>
+    </div>
+  )
+}
+
 export function IngredientsPage() {
   const { activeHousehold } = useHousehold()
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
@@ -20,6 +84,7 @@ export function IngredientsPage() {
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState<Ingredient | null | 'new'>(null)
+  const [openDeleteId, setOpenDeleteId] = useState<string | null>(null)
 
   async function reload() {
     setLoading(true)
@@ -61,12 +126,24 @@ export function IngredientsPage() {
     await reload()
   }
 
+  async function handleDeleteRow(ingredient: Ingredient) {
+    if (!confirm(`Eliminar "${ingredient.name}"? Esto no se puede deshacer.`)) return
+    try {
+      await deleteIngredient(ingredient.id)
+      setIngredients((prev) => prev.filter((i) => i.id !== ingredient.id))
+      setOpenDeleteId(null)
+      setError('')
+    } catch (err) {
+      setError(getErrorMessage(err))
+    }
+  }
+
   return (
     <div className="mx-auto max-w-2xl px-4 pt-4 pb-28">
       <div className="mb-3.5 flex items-center justify-between">
         <p className="font-serif text-[27px] leading-none font-medium text-ink italic">Ingredientes</p>
-        <Link to="/ingredientes/importar" className="rounded-full bg-surface px-3 py-1.5 text-sm font-bold text-accent">
-          Importar CSV
+        <Link to="/ingredientes/importar" className="rounded-full bg-surface px-4 py-1.5 text-sm font-bold text-accent">
+          CSV
         </Link>
       </div>
 
@@ -84,24 +161,14 @@ export function IngredientsPage() {
         <ul className="flex flex-col gap-2">
           {filtered.map((ing) => (
             <li key={ing.id}>
-              <button
-                onClick={() => setEditing(ing)}
-                className="flex w-full items-center gap-3 rounded-2xl bg-surface p-3 text-left"
-              >
-                <span className="flex h-9 w-9 flex-none items-center justify-center rounded-[10px] bg-bg font-serif text-base font-semibold text-accent italic">
-                  {ing.name.charAt(0)}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-bold text-ink">{ing.name}</p>
-                  <p className="text-xs text-sage">{CATEGORY_LABELS[ing.category]}</p>
-                </div>
-                <div className="flex-none text-right text-sm text-muted">
-                  <p>{ing.kcal_per_100g} kcal</p>
-                  <p className="text-xs">
-                    P {ing.protein_per_100g} · C {ing.carbs_per_100g} · G {ing.fat_per_100g}
-                  </p>
-                </div>
-              </button>
+              <IngredientRow
+                ingredient={ing}
+                open={openDeleteId === ing.id}
+                onOpen={() => setOpenDeleteId(ing.id)}
+                onClose={() => setOpenDeleteId(null)}
+                onEdit={() => setEditing(ing)}
+                onDelete={() => handleDeleteRow(ing)}
+              />
             </li>
           ))}
           {filtered.length === 0 && (

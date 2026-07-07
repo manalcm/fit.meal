@@ -4,6 +4,20 @@ import { requireActiveHouseholdId } from './householdScope'
 
 export type IngredientInput = Omit<Ingredient, 'id' | 'household_id' | 'created_at'>
 
+function normalizeIngredientName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+function sameIngredientValues(existing: Ingredient, incoming: IngredientInput): boolean {
+  return (
+    existing.category === incoming.category &&
+    Number(existing.kcal_per_100g) === Number(incoming.kcal_per_100g) &&
+    Number(existing.protein_per_100g) === Number(incoming.protein_per_100g) &&
+    Number(existing.carbs_per_100g) === Number(incoming.carbs_per_100g) &&
+    Number(existing.fat_per_100g) === Number(incoming.fat_per_100g)
+  )
+}
+
 export async function listIngredients(): Promise<Ingredient[]> {
   const householdId = requireActiveHouseholdId()
   const { data, error } = await supabase
@@ -38,7 +52,8 @@ export async function updateIngredient(id: string, input: IngredientInput): Prom
 }
 
 export async function deleteIngredient(id: string): Promise<void> {
-  const { error } = await supabase.from('ingredients').delete().eq('id', id)
+  const householdId = requireActiveHouseholdId()
+  const { error } = await supabase.from('ingredients').delete().eq('id', id).eq('household_id', householdId)
   if (error) throw error
 }
 
@@ -49,7 +64,7 @@ export async function listIngredientNames(): Promise<Set<string>> {
     .select('name')
     .eq('household_id', householdId)
   if (error) throw error
-  return new Set((data ?? []).map((r) => r.name.toLowerCase()))
+  return new Set((data ?? []).map((r) => normalizeIngredientName(r.name)))
 }
 
 /**
@@ -68,14 +83,23 @@ export async function bulkUpsertIngredients(
   // demasiado larga para la petición GET de PostgREST.
   const { data: existing, error: fetchError } = await supabase
     .from('ingredients')
-    .select('id, name')
+    .select('*')
     .eq('household_id', householdId)
   if (fetchError) throw fetchError
 
-  const existingByName = new Map(existing?.map((e) => [e.name.toLowerCase(), e.id]) ?? [])
+  const existingByName = new Map(
+    ((existing ?? []) as Ingredient[]).map((e) => [normalizeIngredientName(e.name), e]),
+  )
 
-  const toInsert = rows.filter((r) => !existingByName.has(r.name.toLowerCase()))
-  const toUpdate = rows.filter((r) => existingByName.has(r.name.toLowerCase()))
+  const exactDuplicates = rows.filter((r) => {
+    const existingRow = existingByName.get(normalizeIngredientName(r.name))
+    return existingRow ? sameIngredientValues(existingRow, r) : false
+  })
+  const toInsert = rows.filter((r) => !existingByName.has(normalizeIngredientName(r.name)))
+  const toUpdate = rows.filter((r) => {
+    const existingRow = existingByName.get(normalizeIngredientName(r.name))
+    return existingRow ? !sameIngredientValues(existingRow, r) : false
+  })
 
   if (toInsert.length > 0) {
     const { error } = await supabase
@@ -87,7 +111,7 @@ export async function bulkUpsertIngredients(
   if (onConflict === 'update' && toUpdate.length > 0) {
     const rowsWithId = toUpdate.map((row) => ({
       ...row,
-      id: existingByName.get(row.name.toLowerCase())!,
+      id: existingByName.get(normalizeIngredientName(row.name))!.id,
       household_id: householdId,
     }))
     const { error } = await supabase.from('ingredients').upsert(rowsWithId, { onConflict: 'id' })
@@ -97,6 +121,6 @@ export async function bulkUpsertIngredients(
   return {
     inserted: toInsert.length,
     updated: onConflict === 'update' ? toUpdate.length : 0,
-    skipped: onConflict === 'skip' ? toUpdate.length : 0,
+    skipped: exactDuplicates.length + (onConflict === 'skip' ? toUpdate.length : 0),
   }
 }
