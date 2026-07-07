@@ -5,6 +5,7 @@ import { computeMealTotals, round1 } from '../lib/calculations'
 import { MEAL_TYPES, MEAL_TYPE_LABELS, MEAL_TYPE_TAG_COLORS } from '../data/mealTypes'
 import { getErrorMessage } from '../lib/errors'
 import type { MealType } from '../types/database'
+import { useHousehold } from '../lib/HouseholdContext'
 
 export function MealsPage() {
   const [meals, setMeals] = useState<MealWithLines[]>([])
@@ -12,13 +13,15 @@ export function MealsPage() {
   const [error, setError] = useState('')
   const [filter, setFilter] = useState<MealType | 'todas'>('todas')
   const navigate = useNavigate()
+  const { activeHousehold } = useHousehold()
 
   useEffect(() => {
+    setLoading(true)
     listMeals()
       .then(setMeals)
       .catch((err) => setError(getErrorMessage(err)))
       .finally(() => setLoading(false))
-  }, [])
+  }, [activeHousehold?.id])
 
   const filtered = useMemo(() => {
     if (filter === 'todas') return meals

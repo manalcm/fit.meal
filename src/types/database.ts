@@ -21,6 +21,7 @@ export type MealType = (typeof MEAL_TYPES)[number]
 
 export interface Ingredient {
   id: string
+  household_id: string
   name: string
   category: IngredientCategory
   kcal_per_100g: number
@@ -36,6 +37,7 @@ export interface Ingredient {
 
 export interface Meal {
   id: string
+  household_id: string
   name: string
   meal_types: MealType[]
   photo_url: string | null
@@ -45,6 +47,7 @@ export interface Meal {
 
 export interface MealIngredient {
   id: string
+  household_id: string
   meal_id: string
   ingredient_id: string
   quantity_grams: number
@@ -52,6 +55,7 @@ export interface MealIngredient {
 
 export interface Person {
   id: string
+  household_id: string
   name: string
   color: string
   target_kcal: number
@@ -64,6 +68,7 @@ export interface Person {
 
 export interface PlanEntry {
   id: string
+  household_id: string
   person_id: string
   date: string
   meal_type: MealType

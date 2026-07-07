@@ -10,6 +10,7 @@ import { round1 } from '../lib/calculations'
 import { toISODate, addDays, startOfWeek, rangeLabel } from '../lib/dates'
 import { INGREDIENT_CATEGORIES, CATEGORY_LABELS } from '../data/categories'
 import { getErrorMessage } from '../lib/errors'
+import { useHousehold } from '../lib/HouseholdContext'
 
 const CATEGORY_ORDER = INGREDIENT_CATEGORIES.map((c) => c.value)
 
@@ -30,6 +31,7 @@ function buildShareText(
 }
 
 export function ShoppingListPage() {
+  const { activeHousehold } = useHousehold()
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()))
   const [items, setItems] = useState<ShoppingListItem[]>([])
   const [checked, setChecked] = useState<Set<string>>(new Set())
@@ -51,7 +53,7 @@ export function ShoppingListPage() {
       })
       .catch((err) => setError(getErrorMessage(err)))
       .finally(() => setLoading(false))
-  }, [startISO, endISO])
+  }, [activeHousehold?.id, startISO, endISO])
 
   const { toBuy, inPantry } = useMemo(() => splitPantry(items), [items])
   const groups = useMemo(() => groupByCategory(toBuy, CATEGORY_ORDER), [toBuy])

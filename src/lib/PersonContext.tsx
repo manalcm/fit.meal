@@ -2,8 +2,9 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { listPeople } from './people'
 import type { Person } from '../types/database'
+import { useHousehold } from './HouseholdContext'
 
-const STORAGE_KEY = 'fitmeal:selectedPersonId'
+const STORAGE_KEY_PREFIX = 'fitmeal:selectedPersonId'
 
 interface PersonContextValue {
   people: Person[]
@@ -16,13 +17,16 @@ interface PersonContextValue {
 const PersonContext = createContext<PersonContextValue | null>(null)
 
 export function PersonProvider({ children }: { children: ReactNode }) {
+  const { activeHousehold } = useHousehold()
+  const storageKey = activeHousehold ? `${STORAGE_KEY_PREFIX}:${activeHousehold.id}` : STORAGE_KEY_PREFIX
   const [people, setPeople] = useState<Person[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(
-    () => localStorage.getItem(STORAGE_KEY),
+    () => localStorage.getItem(storageKey),
   )
   const [loading, setLoading] = useState(true)
 
   async function reload() {
+    if (!activeHousehold) return
     const list = await listPeople()
     setPeople(list)
     setSelectedId((prev) => {
@@ -32,12 +36,14 @@ export function PersonProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    setLoading(true)
+    setSelectedId(localStorage.getItem(storageKey))
     reload().finally(() => setLoading(false))
-  }, [])
+  }, [activeHousehold?.id])
 
   function selectPerson(id: string) {
     setSelectedId(id)
-    localStorage.setItem(STORAGE_KEY, id)
+    localStorage.setItem(storageKey, id)
   }
 
   const selected = people.find((p) => p.id === selectedId) ?? null

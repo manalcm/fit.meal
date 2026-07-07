@@ -11,8 +11,10 @@ import {
 import { CATEGORY_LABELS } from '../data/categories'
 import { IngredientFormModal } from '../components/IngredientFormModal'
 import { getErrorMessage } from '../lib/errors'
+import { useHousehold } from '../lib/HouseholdContext'
 
 export function IngredientsPage() {
+  const { activeHousehold } = useHousehold()
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -33,7 +35,7 @@ export function IngredientsPage() {
 
   useEffect(() => {
     reload()
-  }, [])
+  }, [activeHousehold?.id])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()

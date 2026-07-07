@@ -1,16 +1,27 @@
 import { supabase } from './supabase'
 import type { Ingredient } from '../types/database'
+import { requireActiveHouseholdId } from './householdScope'
 
-export type IngredientInput = Omit<Ingredient, 'id' | 'created_at'>
+export type IngredientInput = Omit<Ingredient, 'id' | 'household_id' | 'created_at'>
 
 export async function listIngredients(): Promise<Ingredient[]> {
-  const { data, error } = await supabase.from('ingredients').select('*').order('name')
+  const householdId = requireActiveHouseholdId()
+  const { data, error } = await supabase
+    .from('ingredients')
+    .select('*')
+    .eq('household_id', householdId)
+    .order('name')
   if (error) throw error
   return data ?? []
 }
 
 export async function createIngredient(input: IngredientInput): Promise<Ingredient> {
-  const { data, error } = await supabase.from('ingredients').insert(input).select().single()
+  const householdId = requireActiveHouseholdId()
+  const { data, error } = await supabase
+    .from('ingredients')
+    .insert({ ...input, household_id: householdId })
+    .select()
+    .single()
   if (error) throw error
   return data
 }
@@ -32,7 +43,11 @@ export async function deleteIngredient(id: string): Promise<void> {
 }
 
 export async function listIngredientNames(): Promise<Set<string>> {
-  const { data, error } = await supabase.from('ingredients').select('name')
+  const householdId = requireActiveHouseholdId()
+  const { data, error } = await supabase
+    .from('ingredients')
+    .select('name')
+    .eq('household_id', householdId)
   if (error) throw error
   return new Set((data ?? []).map((r) => r.name.toLowerCase()))
 }
@@ -46,6 +61,7 @@ export async function bulkUpsertIngredients(
   onConflict: 'update' | 'skip',
 ): Promise<{ inserted: number; updated: number; skipped: number }> {
   if (rows.length === 0) return { inserted: 0, updated: 0, skipped: 0 }
+  const householdId = requireActiveHouseholdId()
 
   // Se trae toda la tabla (nombre e id) en vez de filtrar por una lista de
   // nombres: con cientos de filas a importar, un .in(...) generaría una URL
@@ -53,6 +69,7 @@ export async function bulkUpsertIngredients(
   const { data: existing, error: fetchError } = await supabase
     .from('ingredients')
     .select('id, name')
+    .eq('household_id', householdId)
   if (fetchError) throw fetchError
 
   const existingByName = new Map(existing?.map((e) => [e.name.toLowerCase(), e.id]) ?? [])
@@ -61,7 +78,9 @@ export async function bulkUpsertIngredients(
   const toUpdate = rows.filter((r) => existingByName.has(r.name.toLowerCase()))
 
   if (toInsert.length > 0) {
-    const { error } = await supabase.from('ingredients').insert(toInsert)
+    const { error } = await supabase
+      .from('ingredients')
+      .insert(toInsert.map((row) => ({ ...row, household_id: householdId })))
     if (error) throw error
   }
 
@@ -69,6 +88,7 @@ export async function bulkUpsertIngredients(
     const rowsWithId = toUpdate.map((row) => ({
       ...row,
       id: existingByName.get(row.name.toLowerCase())!,
+      household_id: householdId,
     }))
     const { error } = await supabase.from('ingredients').upsert(rowsWithId, { onConflict: 'id' })
     if (error) throw error

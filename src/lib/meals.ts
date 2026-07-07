@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import type { Ingredient, Meal, MealType } from '../types/database'
+import { requireActiveHouseholdId } from './householdScope'
 
 export interface MealIngredientLine {
   ingredient_id: string
@@ -34,19 +35,35 @@ function toMealWithLines(row: RawMealRow): MealWithLines {
 }
 
 export async function listMeals(): Promise<MealWithLines[]> {
-  const { data, error } = await supabase.from('meals').select(MEAL_SELECT).order('name')
+  const householdId = requireActiveHouseholdId()
+  const { data, error } = await supabase
+    .from('meals')
+    .select(MEAL_SELECT)
+    .eq('household_id', householdId)
+    .order('name')
   if (error) throw error
   return (data as unknown as RawMealRow[]).map(toMealWithLines)
 }
 
 export async function getMeal(id: string): Promise<MealWithLines> {
-  const { data, error } = await supabase.from('meals').select(MEAL_SELECT).eq('id', id).single()
+  const householdId = requireActiveHouseholdId()
+  const { data, error } = await supabase
+    .from('meals')
+    .select(MEAL_SELECT)
+    .eq('id', id)
+    .eq('household_id', householdId)
+    .single()
   if (error) throw error
   return toMealWithLines(data as unknown as RawMealRow)
 }
 
 export async function createMeal(input: MealInput, lines: MealIngredientLine[]): Promise<string> {
-  const { data, error } = await supabase.from('meals').insert(input).select('id').single()
+  const householdId = requireActiveHouseholdId()
+  const { data, error } = await supabase
+    .from('meals')
+    .insert({ ...input, household_id: householdId })
+    .select('id')
+    .single()
   if (error) throw error
   const mealId = data.id as string
   await replaceMealIngredients(mealId, lines)
@@ -58,21 +75,29 @@ export async function updateMeal(
   input: MealInput,
   lines: MealIngredientLine[],
 ): Promise<void> {
-  const { error } = await supabase.from('meals').update(input).eq('id', id)
+  const householdId = requireActiveHouseholdId()
+  const { error } = await supabase
+    .from('meals')
+    .update(input)
+    .eq('id', id)
+    .eq('household_id', householdId)
   if (error) throw error
   await replaceMealIngredients(id, lines)
 }
 
 async function replaceMealIngredients(mealId: string, lines: MealIngredientLine[]): Promise<void> {
+  const householdId = requireActiveHouseholdId()
   const { error: deleteError } = await supabase
     .from('meal_ingredients')
     .delete()
     .eq('meal_id', mealId)
+    .eq('household_id', householdId)
   if (deleteError) throw deleteError
 
   if (lines.length === 0) return
   const { error: insertError } = await supabase.from('meal_ingredients').insert(
     lines.map((l) => ({
+      household_id: householdId,
       meal_id: mealId,
       ingredient_id: l.ingredient_id,
       quantity_grams: l.quantity_grams,
@@ -82,7 +107,8 @@ async function replaceMealIngredients(mealId: string, lines: MealIngredientLine[
 }
 
 export async function deleteMeal(id: string): Promise<void> {
-  const { error } = await supabase.from('meals').delete().eq('id', id)
+  const householdId = requireActiveHouseholdId()
+  const { error } = await supabase.from('meals').delete().eq('id', id).eq('household_id', householdId)
   if (error) throw error
 }
 

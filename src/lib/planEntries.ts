@@ -2,6 +2,7 @@ import { supabase } from './supabase'
 import type { PlanEntry, MealType } from '../types/database'
 import type { MealWithLines } from './meals'
 import { toISODate, addDays, fromISODate } from './dates'
+import { requireActiveHouseholdId } from './householdScope'
 
 export interface PlanEntryWithMeal extends PlanEntry {
   meal: MealWithLines
@@ -32,9 +33,11 @@ export async function listPlanEntries(
   startISO: string,
   endISO: string,
 ): Promise<PlanEntryWithMeal[]> {
+  const householdId = requireActiveHouseholdId()
   const { data, error } = await supabase
     .from('plan_entries')
     .select(ENTRY_SELECT)
+    .eq('household_id', householdId)
     .eq('person_id', personId)
     .gte('date', startISO)
     .lte('date', endISO)
@@ -43,7 +46,12 @@ export async function listPlanEntries(
 }
 
 export async function createPlanEntry(input: PlanEntryInput): Promise<PlanEntry> {
-  const { data, error } = await supabase.from('plan_entries').insert(input).select().single()
+  const householdId = requireActiveHouseholdId()
+  const { data, error } = await supabase
+    .from('plan_entries')
+    .insert({ ...input, household_id: householdId })
+    .select()
+    .single()
   if (error) throw error
   return data
 }
@@ -52,10 +60,12 @@ export async function updatePlanEntry(
   id: string,
   patch: { portion: number | null; override_grams: number | null },
 ): Promise<PlanEntry> {
+  const householdId = requireActiveHouseholdId()
   const { data, error } = await supabase
     .from('plan_entries')
     .update(patch)
     .eq('id', id)
+    .eq('household_id', householdId)
     .select()
     .single()
   if (error) throw error
@@ -63,14 +73,17 @@ export async function updatePlanEntry(
 }
 
 export async function deletePlanEntry(id: string): Promise<void> {
-  const { error } = await supabase.from('plan_entries').delete().eq('id', id)
+  const householdId = requireActiveHouseholdId()
+  const { error } = await supabase.from('plan_entries').delete().eq('id', id).eq('household_id', householdId)
   if (error) throw error
 }
 
 async function fetchRawEntries(personId: string, startISO: string, endISO: string) {
+  const householdId = requireActiveHouseholdId()
   const { data, error } = await supabase
     .from('plan_entries')
     .select('meal_type, meal_id, portion, override_grams, date')
+    .eq('household_id', householdId)
     .eq('person_id', personId)
     .gte('date', startISO)
     .lte('date', endISO)
@@ -79,9 +92,11 @@ async function fetchRawEntries(personId: string, startISO: string, endISO: strin
 }
 
 async function deleteRange(personId: string, startISO: string, endISO: string) {
+  const householdId = requireActiveHouseholdId()
   const { error } = await supabase
     .from('plan_entries')
     .delete()
+    .eq('household_id', householdId)
     .eq('person_id', personId)
     .gte('date', startISO)
     .lte('date', endISO)
@@ -93,7 +108,9 @@ export async function copyDay(personId: string, fromISO: string, toISO: string):
   const source = await fetchRawEntries(personId, fromISO, fromISO)
   await deleteRange(personId, toISO, toISO)
   if (source.length === 0) return
+  const householdId = requireActiveHouseholdId()
   const rows = source.map((e) => ({
+    household_id: householdId,
     person_id: personId,
     date: toISO,
     meal_type: e.meal_type,
@@ -119,9 +136,11 @@ export async function copyWeek(
   const source = await fetchRawEntries(personId, fromStartISO, fromEndISO)
   await deleteRange(personId, toStartISO, toEndISO)
   if (source.length === 0) return
+  const householdId = requireActiveHouseholdId()
 
   const offsetDays = Math.round((toStart.getTime() - fromStart.getTime()) / 86400000)
   const rows = source.map((e) => ({
+    household_id: householdId,
     person_id: personId,
     date: toISODate(addDays(fromISODate(e.date), offsetDays)),
     meal_type: e.meal_type,

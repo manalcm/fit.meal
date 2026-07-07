@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import { round1 } from './calculations'
 import type { Ingredient, IngredientCategory } from '../types/database'
+import { requireActiveHouseholdId } from './householdScope'
 
 export interface ShoppingListItem {
   ingredient: Ingredient
@@ -19,9 +20,11 @@ const LIST_SELECT =
 
 /** Agrega todos los ingredientes necesarios (de ambas personas) entre dos fechas. */
 export async function buildShoppingList(startISO: string, endISO: string): Promise<ShoppingListItem[]> {
+  const householdId = requireActiveHouseholdId()
   const { data, error } = await supabase
     .from('plan_entries')
     .select(LIST_SELECT)
+    .eq('household_id', householdId)
     .gte('date', startISO)
     .lte('date', endISO)
   if (error) throw error

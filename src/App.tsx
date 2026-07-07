@@ -9,6 +9,10 @@ import { TodayPage } from './pages/TodayPage'
 import { WeekPage } from './pages/WeekPage'
 import { ShoppingListPage } from './pages/ShoppingListPage'
 import { PersonProvider } from './lib/PersonContext'
+import { AuthProvider, useAuth } from './lib/AuthContext'
+import { HouseholdProvider, useHousehold } from './lib/HouseholdContext'
+import { AuthPage } from './pages/AuthPage'
+import { HouseholdSetupPage } from './pages/HouseholdSetupPage'
 
 function AnimatedRoutes() {
   const location = useLocation()
@@ -29,7 +33,25 @@ function AnimatedRoutes() {
   )
 }
 
-function App() {
+function AppContent() {
+  const { session, loading: authLoading } = useAuth()
+
+  if (authLoading) return <p className="min-h-dvh bg-bg py-12 text-center text-muted">Cargando...</p>
+  if (!session) return <AuthPage />
+
+  return (
+    <HouseholdProvider>
+      <HouseholdGate />
+    </HouseholdProvider>
+  )
+}
+
+function HouseholdGate() {
+  const { activeHousehold, loading } = useHousehold()
+
+  if (loading) return <p className="min-h-dvh bg-bg py-12 text-center text-muted">Cargando...</p>
+  if (!activeHousehold) return <HouseholdSetupPage />
+
   return (
     <BrowserRouter>
       <PersonProvider>
@@ -39,6 +61,14 @@ function App() {
         <BottomNav />
       </PersonProvider>
     </BrowserRouter>
+  )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   )
 }
 

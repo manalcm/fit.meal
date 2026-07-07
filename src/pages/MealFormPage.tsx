@@ -7,6 +7,7 @@ import { computeMealTotals, round1 } from '../lib/calculations'
 import { MEAL_TYPES, MEAL_TYPE_LABELS } from '../data/mealTypes'
 import { getErrorMessage } from '../lib/errors'
 import type { Ingredient, MealType } from '../types/database'
+import { useHousehold } from '../lib/HouseholdContext'
 
 interface Line {
   ingredient: Ingredient
@@ -17,6 +18,7 @@ export function MealFormPage() {
   const { id } = useParams()
   const isNew = !id
   const navigate = useNavigate()
+  const { activeHousehold } = useHousehold()
 
   const [loading, setLoading] = useState(!isNew)
   const [error, setError] = useState('')
@@ -34,7 +36,7 @@ export function MealFormPage() {
 
   useEffect(() => {
     listIngredients().then(setAllIngredients).catch((err) => setError(getErrorMessage(err)))
-  }, [])
+  }, [activeHousehold?.id])
 
   useEffect(() => {
     if (isNew) return
@@ -48,7 +50,7 @@ export function MealFormPage() {
       })
       .catch((err) => setError(getErrorMessage(err)))
       .finally(() => setLoading(false))
-  }, [id, isNew])
+  }, [activeHousehold?.id, id, isNew])
 
   const matches = useMemo(() => {
     const q = search.trim().toLowerCase()

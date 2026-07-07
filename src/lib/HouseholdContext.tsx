@@ -1,0 +1,133 @@
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
+import { supabase } from './supabase'
+import { setActiveHouseholdId } from './householdScope'
+import { useAuth } from './AuthContext'
+
+const STORAGE_KEY = 'fitmeal:activeHouseholdId'
+
+export interface Household {
+  id: string
+  name: string
+  invite_code: string
+  created_by: string | null
+  created_at: string
+}
+
+interface MembershipRow {
+  household: Household | Household[]
+}
+
+interface HouseholdContextValue {
+  households: Household[]
+  activeHousehold: Household | null
+  loading: boolean
+  selectHousehold: (id: string) => void
+  reload: () => Promise<void>
+  createHousehold: (name: string) => Promise<void>
+  joinHousehold: (code: string) => Promise<void>
+}
+
+const HouseholdContext = createContext<HouseholdContextValue | null>(null)
+
+function normalizeHousehold(row: MembershipRow): Household | null {
+  if (Array.isArray(row.household)) return row.household[0] ?? null
+  return row.household ?? null
+}
+
+export function HouseholdProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth()
+  const [households, setHouseholds] = useState<Household[]>([])
+  const [activeId, setActiveId] = useState<string | null>(() => localStorage.getItem(STORAGE_KEY))
+  const [loading, setLoading] = useState(true)
+
+  async function fetchHouseholds(): Promise<Household[]> {
+    const { data, error } = await supabase
+      .from('household_members')
+      .select('household:households(*)')
+      .order('created_at')
+    if (error) throw error
+    return ((data ?? []) as unknown as MembershipRow[])
+      .map(normalizeHousehold)
+      .filter((h): h is Household => Boolean(h))
+  }
+
+  async function reload() {
+    if (!user) {
+      setHouseholds([])
+      setActiveId(null)
+      setActiveHouseholdId(null)
+      return
+    }
+
+    let list = await fetchHouseholds()
+    if (list.length === 0) {
+      const { error } = await supabase.rpc('claim_existing_fitmeal_household')
+      if (!error) list = await fetchHouseholds()
+    }
+
+    setHouseholds(list)
+    setActiveId((prev) => {
+      const stored = prev && list.some((h) => h.id === prev) ? prev : null
+      const next = stored ?? list[0]?.id ?? null
+      if (next) localStorage.setItem(STORAGE_KEY, next)
+      else localStorage.removeItem(STORAGE_KEY)
+      setActiveHouseholdId(next)
+      return next
+    })
+  }
+
+  useEffect(() => {
+    setLoading(true)
+    reload().finally(() => setLoading(false))
+  }, [user?.id])
+
+  const activeHousehold = households.find((h) => h.id === activeId) ?? null
+
+  useEffect(() => {
+    setActiveHouseholdId(activeHousehold?.id ?? null)
+  }, [activeHousehold?.id])
+
+  const value = useMemo<HouseholdContextValue>(
+    () => ({
+      households,
+      activeHousehold,
+      loading,
+      selectHousehold(id) {
+        setActiveId(id)
+        localStorage.setItem(STORAGE_KEY, id)
+        setActiveHouseholdId(id)
+      },
+      reload,
+      async createHousehold(name) {
+        const { data, error } = await supabase.rpc('create_household_for_current_user', {
+          household_name: name,
+        })
+        if (error) throw error
+        const household = data as Household
+        await reload()
+        setActiveId(household.id)
+        localStorage.setItem(STORAGE_KEY, household.id)
+        setActiveHouseholdId(household.id)
+      },
+      async joinHousehold(code) {
+        const { data, error } = await supabase.rpc('join_household_by_code', { code })
+        if (error) throw error
+        const household = data as Household
+        await reload()
+        setActiveId(household.id)
+        localStorage.setItem(STORAGE_KEY, household.id)
+        setActiveHouseholdId(household.id)
+      },
+    }),
+    [activeHousehold, households, loading],
+  )
+
+  return <HouseholdContext.Provider value={value}>{children}</HouseholdContext.Provider>
+}
+
+export function useHousehold() {
+  const ctx = useContext(HouseholdContext)
+  if (!ctx) throw new Error('useHousehold debe usarse dentro de HouseholdProvider')
+  return ctx
+}
