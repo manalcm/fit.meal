@@ -92,13 +92,10 @@ export function ImportIngredientsPage() {
           <div className="rounded-2xl bg-surface p-4">
             <p className="mb-2 text-sm text-ink">
               Sube un archivo CSV con las columnas:{' '}
-              <code className="text-xs text-muted">
-                nombre, categoria, kcal_100g, proteina_100g, carbos_100g, grasa_100g, precio_kg,
-                unidad_por_defecto, gramos_por_unidad
-              </code>
+              <code className="text-xs text-muted">Alimento, kcal, proteina, carbohidratos, grasa</code>
             </p>
             <p className="mb-3 text-xs text-muted">
-              ¿Tienes un Excel? Guárdalo primero como CSV (Archivo → Guardar como → CSV).
+              Guarda tu Excel como CSV. Si tu hoja usa proteina sin acento tambien funciona.
             </p>
             <a href="/plantilla-alimentos.csv" download className="mb-3 inline-block text-sm text-accent underline">
               Descargar plantilla de ejemplo
@@ -131,6 +128,7 @@ export function ImportIngredientsPage() {
           {result.headerIssues.length > 0 ? (
             <div className="rounded-2xl bg-surface p-3 text-sm text-over">
               <p className="mb-1 font-bold">El archivo no tiene el formato esperado:</p>
+              <p className="mb-2 text-muted">Usa columnas: Alimento, kcal, proteina, carbohidratos, grasa.</p>
               <ul className="list-inside list-disc">
                 {result.headerIssues.map((issue) => (
                   <li key={issue}>{issue}</li>

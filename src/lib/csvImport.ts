@@ -3,15 +3,11 @@ import type { IngredientCategory, IngredientUnit } from '../types/database'
 import type { IngredientInput } from './ingredients'
 
 export const CSV_TEMPLATE_HEADERS = [
-  'nombre',
-  'categoria',
-  'kcal_100g',
-  'proteina_100g',
-  'carbos_100g',
-  'grasa_100g',
-  'precio_kg',
-  'unidad_por_defecto',
-  'gramos_por_unidad',
+  'Alimento',
+  'kcal',
+  'proteína',
+  'carbohidratos',
+  'grasa',
 ] as const
 
 const VALID_CATEGORIES: IngredientCategory[] = [
@@ -57,20 +53,70 @@ function toNumber(value: string | undefined): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+function normalizeHeader(header: string): string {
+  const normalized = header
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '_')
+
+  const aliases: Record<string, string> = {
+    alimento: 'nombre',
+    alimentos: 'nombre',
+    ingrediente: 'nombre',
+    ingredientes: 'nombre',
+    nombre: 'nombre',
+    kcal: 'kcal_100g',
+    calorias: 'kcal_100g',
+    kcal_100g: 'kcal_100g',
+    kcal_por_100g: 'kcal_100g',
+    proteina: 'proteina_100g',
+    proteinas: 'proteina_100g',
+    protein: 'proteina_100g',
+    proteina_100g: 'proteina_100g',
+    proteina_por_100g: 'proteina_100g',
+    carbohidratos: 'carbos_100g',
+    carbohidrato: 'carbos_100g',
+    carbos: 'carbos_100g',
+    carbs: 'carbos_100g',
+    carbos_100g: 'carbos_100g',
+    carbohidratos_100g: 'carbos_100g',
+    carbohidratos_por_100g: 'carbos_100g',
+    grasa: 'grasa_100g',
+    grasas: 'grasa_100g',
+    fat: 'grasa_100g',
+    grasa_100g: 'grasa_100g',
+    grasa_por_100g: 'grasa_100g',
+    categoria: 'categoria',
+    precio_kg: 'precio_kg',
+    precio_por_kg: 'precio_kg',
+    unidad_por_defecto: 'unidad_por_defecto',
+    unidad: 'unidad_por_defecto',
+    gramos_por_unidad: 'gramos_por_unidad',
+  }
+
+  return aliases[normalized] ?? normalized
+}
+
 export function parseIngredientsCsv(text: string): ParseResult {
   const parsed = Papa.parse<Record<string, string>>(text, {
     header: true,
     skipEmptyLines: true,
-    transformHeader: (h) => h.trim().toLowerCase(),
+    transformHeader: normalizeHeader,
   })
 
   const headerIssues: string[] = []
   const foundHeaders = new Set(parsed.meta.fields ?? [])
-  const requiredHeaders = CSV_TEMPLATE_HEADERS.filter(
-    (h) => !['precio_kg', 'unidad_por_defecto', 'gramos_por_unidad'].includes(h),
-  )
-  for (const h of requiredHeaders) {
-    if (!foundHeaders.has(h)) headerIssues.push(`Falta la columna obligatoria "${h}".`)
+  const requiredHeaders = [
+    ['nombre', 'Alimento'],
+    ['kcal_100g', 'kcal'],
+    ['proteina_100g', 'proteína'],
+    ['carbos_100g', 'carbohidratos'],
+    ['grasa_100g', 'grasa'],
+  ] as const
+  for (const [key, label] of requiredHeaders) {
+    if (!foundHeaders.has(key)) headerIssues.push(`Falta la columna obligatoria "${label}".`)
   }
 
   if (headerIssues.length > 0) {
@@ -98,9 +144,12 @@ export function parseIngredientsCsv(text: string): ParseResult {
     seenNames.set(key, rowNumber)
 
     const categoryRaw = (record.categoria ?? '').trim().toLowerCase()
-    const category = VALID_CATEGORIES.includes(categoryRaw as IngredientCategory)
-      ? (categoryRaw as IngredientCategory)
-      : null
+    const category =
+      categoryRaw === ''
+        ? 'otros'
+        : VALID_CATEGORIES.includes(categoryRaw as IngredientCategory)
+          ? (categoryRaw as IngredientCategory)
+          : null
     if (!category) {
       issues.push({
         row: rowNumber,
