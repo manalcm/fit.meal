@@ -12,6 +12,7 @@ export function MealsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [filter, setFilter] = useState<MealType>(MEAL_TYPES[0])
+  const [search, setSearch] = useState('')
   const navigate = useNavigate()
   const { activeHousehold } = useHousehold()
 
@@ -24,8 +25,13 @@ export function MealsPage() {
   }, [activeHousehold?.id])
 
   const filtered = useMemo(() => {
-    return meals.filter((m) => m.meal_types.includes(filter))
-  }, [meals, filter])
+    const q = search.trim().toLowerCase()
+    return meals.filter((m) => {
+      const matchesCategory = m.meal_types.includes(filter)
+      const matchesSearch = !q || m.name.toLowerCase().includes(q)
+      return matchesCategory && matchesSearch
+    })
+  }, [meals, filter, search])
 
   return (
     <div className="mx-auto max-w-2xl px-4 pt-4 pb-28">
@@ -44,6 +50,13 @@ export function MealsPage() {
           </button>
         ))}
       </div>
+
+      <input
+        className="mb-3.5 w-full rounded-xl bg-surface px-4 py-3 text-base text-ink placeholder:text-muted"
+        placeholder="Buscar plato…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
 
       {loading && <p className="py-8 text-center text-muted">Cargando…</p>}
       {error && <p className="rounded-2xl bg-surface p-3 text-sm text-over">{error}</p>}
@@ -78,7 +91,11 @@ export function MealsPage() {
               </li>
             )
           })}
-          {filtered.length === 0 && <p className="py-8 text-center text-muted">Todavía no hay platos aquí.</p>}
+          {filtered.length === 0 && (
+            <p className="py-8 text-center text-muted">
+              {search ? 'No se encontraron platos que coincidan con la búsqueda.' : 'Todavía no hay platos aquí.'}
+            </p>
+          )}
         </ul>
       )}
 
