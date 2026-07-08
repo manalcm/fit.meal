@@ -205,6 +205,8 @@ export function parseIngredientsCsv(text: string): ParseResult {
         default_unit: unit,
         grams_per_unit: gramsPerUnit,
         in_pantry: false,
+        package_price: null,
+        package_size: null,
       },
     })
   })

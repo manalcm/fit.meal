@@ -7,6 +7,7 @@ export interface ShoppingListItem {
   ingredient: Ingredient
   grams: number
   cost: number
+  warning?: boolean
 }
 
 interface RawEntryForList {
@@ -49,11 +50,38 @@ export async function buildShoppingList(startISO: string, endISO: string): Promi
   }
 
   return Array.from(totals.values())
-    .map(({ ingredient, grams }) => ({
-      ingredient,
-      grams,
-      cost: ingredient.price_per_kg != null ? (grams / 1000) * ingredient.price_per_kg : 0,
-    }))
+    .map(({ ingredient, grams }) => {
+      const hasNoPackageData =
+        ingredient.package_price == null ||
+        ingredient.package_size == null ||
+        ingredient.package_price <= 0 ||
+        ingredient.package_size <= 0
+
+      let cost = 0
+      if (hasNoPackageData) {
+        cost = ingredient.price_per_kg != null ? (grams / 1000) * ingredient.price_per_kg : 0
+      } else {
+        const price = ingredient.package_price!
+        const size = ingredient.package_size!
+
+        if (ingredient.default_unit === 'unidad') {
+          const gramsPerUnit = ingredient.grams_per_unit || 1
+          const unitsNeeded = grams / gramsPerUnit
+          const packagesNeeded = Math.ceil(unitsNeeded / size)
+          cost = packagesNeeded * price
+        } else {
+          const packagesNeeded = Math.ceil(grams / size)
+          cost = packagesNeeded * price
+        }
+      }
+
+      return {
+        ingredient,
+        grams,
+        cost,
+        warning: hasNoPackageData,
+      }
+    })
     .sort((a, b) => a.ingredient.name.localeCompare(b.ingredient.name, 'es'))
 }
 

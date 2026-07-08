@@ -32,6 +32,8 @@ export interface Ingredient {
   default_unit: IngredientUnit
   grams_per_unit: number | null
   in_pantry: boolean
+  package_price: number | null
+  package_size: number | null
   created_at: string
 }
 

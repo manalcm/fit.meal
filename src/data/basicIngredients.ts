@@ -10,6 +10,8 @@ export interface BasicIngredient {
   price_per_kg: number | null
   default_unit: IngredientUnit
   grams_per_unit: number | null
+  package_price?: number | null
+  package_size?: number | null
 }
 
 // 25 básicos españoles para arrancar sin tener que rellenar nada a mano.

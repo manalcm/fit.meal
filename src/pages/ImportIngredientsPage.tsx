@@ -131,7 +131,12 @@ export function ImportIngredientsPage() {
     setBasicsMessage('Importando…')
     try {
       const r = await bulkUpsertIngredients(
-        BASIC_INGREDIENTS.map((b) => ({ ...b, in_pantry: false })),
+        BASIC_INGREDIENTS.map((b) => ({
+          ...b,
+          in_pantry: false,
+          package_price: b.package_price ?? null,
+          package_size: b.package_size ?? null,
+        })),
         'skip',
       )
       setBasicsMessage(

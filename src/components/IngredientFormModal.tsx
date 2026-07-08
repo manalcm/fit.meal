@@ -19,10 +19,16 @@ export function IngredientFormModal({ initial, onSave, onDelete, onClose }: Prop
   const [protein, setProtein] = useState(initial ? String(initial.protein_per_100g) : '')
   const [carbs, setCarbs] = useState(initial ? String(initial.carbs_per_100g) : '')
   const [fat, setFat] = useState(initial ? String(initial.fat_per_100g) : '')
-  const [packagePrice, setPackagePrice] = useState(
-    initial?.price_per_kg != null ? String(initial.price_per_kg) : '',
-  )
-  const [packageGrams, setPackageGrams] = useState(initial?.price_per_kg != null ? '1000' : '')
+  const [packagePrice, setPackagePrice] = useState(() => {
+    if (initial?.package_price != null) return String(initial.package_price)
+    if (initial?.price_per_kg != null) return String(initial.price_per_kg)
+    return ''
+  })
+  const [packageGrams, setPackageGrams] = useState(() => {
+    if (initial?.package_size != null) return String(initial.package_size)
+    if (initial?.price_per_kg != null) return '1000'
+    return ''
+  })
   const [unit, setUnit] = useState<IngredientUnit>(initial?.default_unit ?? 'gramos')
   const [gramsPerUnit, setGramsPerUnit] = useState(
     initial?.grams_per_unit != null ? String(initial.grams_per_unit) : '',
@@ -35,10 +41,18 @@ export function IngredientFormModal({ initial, onSave, onDelete, onClose }: Prop
   const toNumOrNull = (v: string) => (v.trim() === '' ? null : Number(v.replace(',', '.')))
 
   function computePricePerKg(): number | null {
-    const grams = toNum(packageGrams)
+    const size = toNum(packageGrams)
     const price = toNum(packagePrice)
-    if (grams <= 0 || price <= 0) return null
-    return Math.round((price / grams) * 1000 * 100) / 100
+    if (size <= 0 || price <= 0) return null
+
+    if (unit === 'unidad') {
+      const gPerUnit = toNum(gramsPerUnit)
+      if (gPerUnit <= 0) return null
+      const totalGramsInPackage = size * gPerUnit
+      return Math.round((price / totalGramsInPackage) * 1000 * 100) / 100
+    }
+
+    return Math.round((price / size) * 1000 * 100) / 100
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -61,6 +75,8 @@ export function IngredientFormModal({ initial, onSave, onDelete, onClose }: Prop
         default_unit: unit,
         grams_per_unit: toNumOrNull(gramsPerUnit),
         in_pantry: inPantry,
+        package_price: toNumOrNull(packagePrice),
+        package_size: toNumOrNull(packageGrams),
       })
     } catch (err) {
       setError(getErrorMessage(err))
@@ -157,13 +173,13 @@ export function IngredientFormModal({ initial, onSave, onDelete, onClose }: Prop
             />
           </label>
           <label className="flex flex-col gap-1 text-sm text-ink">
-            Cantidad (g o ml)
+            Cantidad ({unit === 'unidad' ? 'unidades' : unit === 'ml' ? 'ml' : 'g'})
             <input
               inputMode="decimal"
               className="rounded-xl bg-surface px-3 py-2 text-base text-ink"
               value={packageGrams}
               onChange={(e) => setPackageGrams(e.target.value)}
-              placeholder="ej. 500"
+              placeholder={unit === 'unidad' ? 'ej. 6' : unit === 'ml' ? 'ej. 1000' : 'ej. 500'}
             />
           </label>
         </div>

@@ -132,6 +132,14 @@ export function ShoppingListPage() {
                         />
                         <span className={`flex-1 ${isChecked ? 'text-track line-through' : 'text-ink'}`}>
                           {item.ingredient.name}
+                          {item.warning && (
+                            <span
+                              className="ml-1.5 inline-block text-accent font-bold"
+                              title="Falta configurar el precio/tamaño del envase de este ingrediente"
+                            >
+                              ⚠️
+                            </span>
+                          )}
                         </span>
                         <span className={`text-muted ${isChecked ? 'line-through' : ''}`}>
                           {formatShoppingQuantity(item.ingredient, item.grams)}
