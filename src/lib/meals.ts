@@ -21,6 +21,7 @@ export interface MealInput {
   meal_types: MealType[]
   photo_url: string | null
   notes: string | null
+  recipe_servings: number
 }
 
 const MEAL_SELECT = '*, meal_ingredients(quantity_grams, ingredient:ingredients(*))'
@@ -31,7 +32,7 @@ interface RawMealRow extends Meal {
 
 function toMealWithLines(row: RawMealRow): MealWithLines {
   const { meal_ingredients, ...meal } = row
-  return { ...meal, lines: meal_ingredients ?? [] }
+  return { ...meal, recipe_servings: meal.recipe_servings ?? 1, lines: meal_ingredients ?? [] }
 }
 
 export async function listMeals(): Promise<MealWithLines[]> {
@@ -96,11 +97,11 @@ async function replaceMealIngredients(mealId: string, lines: MealIngredientLine[
 
   if (lines.length === 0) return
   const { error: insertError } = await supabase.from('meal_ingredients').insert(
-    lines.map((l) => ({
+    lines.map((line) => ({
       household_id: householdId,
       meal_id: mealId,
-      ingredient_id: l.ingredient_id,
-      quantity_grams: l.quantity_grams,
+      ingredient_id: line.ingredient_id,
+      quantity_grams: line.quantity_grams,
     })),
   )
   if (insertError) throw insertError

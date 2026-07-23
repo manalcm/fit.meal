@@ -12,6 +12,7 @@ export interface BasicIngredient {
   grams_per_unit: number | null
   package_price?: number | null
   package_size?: number | null
+  package_unit?: IngredientUnit | null
 }
 
 // 25 básicos españoles para arrancar sin tener que rellenar nada a mano.

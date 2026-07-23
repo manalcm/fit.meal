@@ -4,6 +4,15 @@ import { requireActiveHouseholdId } from './householdScope'
 
 export type IngredientInput = Omit<Ingredient, 'id' | 'household_id' | 'created_at'>
 
+export interface BlockedIngredientDeletion {
+  ingredient_id: string
+  meal_names: string[]
+}
+
+export interface IngredientDeletionResult {
+  deleted_ids: string[]
+  blocked: BlockedIngredientDeletion[]
+}
 function normalizeIngredientName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, ' ')
 }
@@ -51,22 +60,42 @@ export async function updateIngredient(id: string, input: IngredientInput): Prom
   return data
 }
 
-export async function deleteIngredient(id: string): Promise<void> {
-  const householdId = requireActiveHouseholdId()
-  const { error } = await supabase.from('ingredients').delete().eq('id', id).eq('household_id', householdId)
-  if (error) throw error
+function normalizeDeletionResult(value: unknown): IngredientDeletionResult {
+  const result = (value ?? {}) as Partial<IngredientDeletionResult>
+  return {
+    deleted_ids: Array.isArray(result.deleted_ids)
+      ? result.deleted_ids.filter((id): id is string => typeof id === 'string')
+      : [],
+    blocked: Array.isArray(result.blocked)
+      ? result.blocked.flatMap((item) => {
+          if (!item || typeof item.ingredient_id !== 'string') return []
+          return [{
+            ingredient_id: item.ingredient_id,
+            meal_names: Array.isArray(item.meal_names)
+              ? item.meal_names.filter((name): name is string => typeof name === 'string')
+              : [],
+          }]
+        })
+      : [],
+  }
 }
 
-export async function deleteAllIngredients(): Promise<void> {
-  const householdId = requireActiveHouseholdId()
-  const { error: mealLinesError } = await supabase
-    .from('meal_ingredients')
-    .delete()
-    .eq('household_id', householdId)
-  if (mealLinesError) throw mealLinesError
-
-  const { error } = await supabase.from('ingredients').delete().eq('household_id', householdId)
+export async function deleteUnusedIngredients(ids: string[]): Promise<IngredientDeletionResult> {
+  if (ids.length === 0) return { deleted_ids: [], blocked: [] }
+  const { data, error } = await supabase.rpc('delete_unused_ingredients', {
+    p_ingredient_ids: [...new Set(ids)],
+  })
   if (error) throw error
+  return normalizeDeletionResult(data)
+}
+
+export async function deleteIngredient(id: string): Promise<IngredientDeletionResult> {
+  return deleteUnusedIngredients([id])
+}
+
+export async function deleteAllIngredients(): Promise<IngredientDeletionResult> {
+  const ingredients = await listIngredients()
+  return deleteUnusedIngredients(ingredients.map((ingredient) => ingredient.id))
 }
 
 export async function listIngredientNames(): Promise<Set<string>> {

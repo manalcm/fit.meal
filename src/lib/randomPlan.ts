@@ -1,67 +1,98 @@
+import type { MealType, Person } from '../types/database'
 import type { MealWithLines } from './meals'
-import { computeMealTotals } from './calculations'
-import { MEAL_TYPES } from '../data/mealTypes'
-import type { MealType } from '../types/database'
+import type { PlanEntryWithDetails } from './planEntries'
+import {
+  computeMealPerServingTotals,
+  computePlanEntryDetailsTotals,
+  sumTotals,
+  type Totals,
+} from './calculations'
 
-const SLOT_WEIGHTS: Record<MealType, number> = {
-  desayuno: 0.25,
-  almuerzo: 0.35,
-  cena: 0.3,
-  snack: 0.1,
+export interface SurpriseAssignment {
+  personId: string
+  personName: string
+  servings: 0.5 | 1
 }
 
-export interface RandomPick {
-  mealType: MealType
+export interface SurpriseCandidate {
   meal: MealWithLines
+  assignments: SurpriseAssignment[]
 }
 
-export interface RandomDayResult {
-  picks: RandomPick[]
-  skipped: MealType[]
-}
-
-function shuffle<T>(items: T[]): T[] {
-  const copy = [...items]
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[copy[i], copy[j]] = [copy[j], copy[i]]
+export function remainingMacrosForPerson(
+  person: Person,
+  entries: PlanEntryWithDetails[],
+): Totals {
+  const consumed = sumTotals(
+    entries
+      .filter((entry) => entry.person_id === person.id)
+      .map(computePlanEntryDetailsTotals),
+  )
+  return {
+    kcal: person.target_kcal - consumed.kcal,
+    protein: person.target_protein - consumed.protein,
+    carbs: person.target_carbs - consumed.carbs,
+    fat: person.target_fat - consumed.fat,
+    cost: 0,
   }
-  return copy
 }
 
-/**
- * Elige al azar un plato para cada franja del día sin que la suma de kcal
- * supere targetKcal. Reparte el presupuesto entre franjas según SLOT_WEIGHTS
- * y, si un plato no cabe en el reparto de su franja, prueba con lo que quede
- * de presupuesto global antes de dejar la franja sin asignar.
- */
-export function generateRandomDay(meals: MealWithLines[], targetKcal: number): RandomDayResult {
-  const picks: RandomPick[] = []
-  const skipped: MealType[] = []
-  let remainingBudget = targetKcal
-  let remainingWeight = MEAL_TYPES.reduce((sum, mt) => sum + SLOT_WEIGHTS[mt], 0)
+function fits(totals: Totals, remaining: Totals): boolean {
+  const epsilon = 0.000001
+  return (
+    totals.kcal <= remaining.kcal + epsilon &&
+    totals.protein <= remaining.protein + epsilon &&
+    totals.carbs <= remaining.carbs + epsilon &&
+    totals.fat <= remaining.fat + epsilon
+  )
+}
 
-  for (const mealType of MEAL_TYPES) {
-    const weight = SLOT_WEIGHTS[mealType]
-    const slotBudget = remainingWeight > 0 ? remainingBudget * (weight / remainingWeight) : 0
-    remainingWeight -= weight
-
-    const candidates = shuffle(meals.filter((m) => m.meal_types.includes(mealType))).map((meal) => ({
-      meal,
-      kcal: computeMealTotals(meal.lines).kcal,
-    }))
-
-    const choice =
-      candidates.find((c) => c.kcal <= slotBudget && c.kcal <= remainingBudget) ??
-      candidates.find((c) => c.kcal <= remainingBudget)
-
-    if (choice) {
-      picks.push({ mealType, meal: choice.meal })
-      remainingBudget -= choice.kcal
-    } else if (candidates.length > 0) {
-      skipped.push(mealType)
-    }
+function servingThatFits(perServing: Totals, remaining: Totals): 0.5 | 1 | null {
+  if (fits(perServing, remaining)) return 1
+  const half = {
+    kcal: perServing.kcal * 0.5,
+    protein: perServing.protein * 0.5,
+    carbs: perServing.carbs * 0.5,
+    fat: perServing.fat * 0.5,
+    cost: perServing.cost * 0.5,
   }
+  return fits(half, remaining) ? 0.5 : null
+}
 
-  return { picks, skipped }
+export function validSurpriseCandidates(
+  meals: MealWithLines[],
+  mealType: MealType,
+  people: Person[],
+  dayEntries: PlanEntryWithDetails[],
+): SurpriseCandidate[] {
+  if (people.length === 0) return []
+
+  return meals
+    .filter((meal) => meal.meal_types.includes(mealType))
+    .flatMap((meal) => {
+      const perServing = computeMealPerServingTotals(meal.lines, meal.recipe_servings)
+      const assignments: SurpriseAssignment[] = []
+      for (const person of people) {
+        const servings = servingThatFits(
+          perServing,
+          remainingMacrosForPerson(person, dayEntries),
+        )
+        if (servings == null) return []
+        assignments.push({ personId: person.id, personName: person.name, servings })
+      }
+      return [{ meal, assignments }]
+    })
+}
+
+export function chooseSurpriseCandidate(
+  meals: MealWithLines[],
+  mealType: MealType,
+  people: Person[],
+  dayEntries: PlanEntryWithDetails[],
+  random: () => number = Math.random,
+): SurpriseCandidate | null {
+  const candidates = validSurpriseCandidates(meals, mealType, people, dayEntries)
+  if (candidates.length === 0) return null
+  const index = Math.min(candidates.length - 1, Math.floor(random() * candidates.length))
+  return candidates[index]
 }

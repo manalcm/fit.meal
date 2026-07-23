@@ -207,6 +207,7 @@ export function parseIngredientsCsv(text: string): ParseResult {
         in_pantry: false,
         package_price: null,
         package_size: null,
+        package_unit: null,
       },
     })
   })

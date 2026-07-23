@@ -1,19 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AddMealButton } from './AddMealButton'
+import { PlanEntryComposer, type PlanComposerItem } from './PlanEntryComposer'
+import { PlanActionNotice } from './PlanActionNotice'
 import { PlanEntryRow } from './PlanEntryRow'
 import {
   listPlanEntries,
-  createPlanEntry,
   updatePlanEntry,
+  updateLoosePlanEntry,
   deletePlanEntry,
-  type PlanEntryWithMeal,
+  type PlanEntryWithDetails,
 } from '../lib/planEntries'
+import { applyServingPatch, buildServingPatch, type ServingPatch } from '../lib/servings'
 import { listMeals, type MealWithLines } from '../lib/meals'
-import { computePlanEntryTotals, sumTotals, round1 } from '../lib/calculations'
+import { listIngredients } from '../lib/ingredients'
+import { computePlanEntryDetailsTotals, sumTotals, round1 } from '../lib/calculations'
 import { toISODate, addMonths, startOfMonth, monthGrid, monthLabel, dayLabel } from '../lib/dates'
 import { MEAL_TYPES } from '../data/mealTypes'
-import type { MealType, Person } from '../types/database'
+import type { Ingredient, MealType, Person } from '../types/database'
 import { getErrorMessage } from '../lib/errors'
+import { usePerson } from '../lib/PersonContext'
+import { useHouseholdPlanActions } from '../lib/useHouseholdPlanActions'
 import {
   ResponsiveContainer,
   BarChart,
@@ -31,10 +36,18 @@ interface Props {
   person: Person
 }
 
+function entryLabel(entry: PlanEntryWithDetails): string {
+  if (entry.entry_kind === 'eating_out') return 'Comemos fuera'
+  if (entry.entry_kind === 'loose_ingredient') return entry.ingredient?.name ?? 'Alimento suelto'
+  return entry.meal?.name ?? 'Plato'
+}
+
 export function MonthCalendar({ person }: Props) {
+  const { people } = usePerson()
   const [month, setMonth] = useState(() => startOfMonth(new Date()))
-  const [entries, setEntries] = useState<PlanEntryWithMeal[]>([])
+  const [entries, setEntries] = useState<PlanEntryWithDetails[]>([])
   const [meals, setMeals] = useState<MealWithLines[]>([])
+  const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showStats, setShowStats] = useState(false)
@@ -45,66 +58,80 @@ export function MonthCalendar({ person }: Props) {
   const monthStartISO = toISODate(weeks[0][0])
   const monthEndISO = toISODate(weeks[weeks.length - 1][6])
 
+  async function reloadEntries() {
+    setEntries(await listPlanEntries(person.id, monthStartISO, monthEndISO))
+  }
+
+  const householdActions = useHouseholdPlanActions({
+    sourcePersonId: person.id,
+    onChanged: reloadEntries,
+  })
+
   useEffect(() => {
     setLoading(true)
-    Promise.all([listPlanEntries(person.id, monthStartISO, monthEndISO), listMeals()])
-      .then(([e, m]) => {
-        setEntries(e)
-        setMeals(m)
+    Promise.all([
+      listPlanEntries(person.id, monthStartISO, monthEndISO),
+      listMeals(),
+      listIngredients(),
+    ])
+      .then(([nextEntries, nextMeals, nextIngredients]) => {
+        setEntries(nextEntries)
+        setMeals(nextMeals)
+        setIngredients(nextIngredients)
         setError('')
       })
-      .catch((err) => setError(getErrorMessage(err)))
+      .catch((caught) => setError(getErrorMessage(caught)))
       .finally(() => setLoading(false))
   }, [person, monthStartISO, monthEndISO])
 
-  async function handleAdd(dateISO: string, mealType: MealType, meal: MealWithLines) {
-    try {
-      const row = await createPlanEntry({
-        person_id: person.id,
-        date: dateISO,
-        meal_type: mealType,
-        meal_id: meal.id,
-        portion: 1,
-        override_grams: null,
-      })
-      setEntries((prev) => [...prev, { ...row, meal }])
-    } catch (err) {
-      setError(getErrorMessage(err))
-    }
+  async function handleAdd(dateISO: string, mealType: MealType, item: PlanComposerItem) {
+    await householdActions.addItem(dateISO, mealType, item)
   }
 
-  async function handlePatch(
-    entry: PlanEntryWithMeal,
-    patch: { portion: number | null; override_grams: number | null },
-  ) {
-    setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, ...patch } : e)))
+  async function handleEatingOut(dateISO: string, mealType: MealType, personIds: string[]) {
+    await householdActions.markEatingOut(dateISO, mealType, personIds)
+  }
+
+  async function handlePatch(entry: PlanEntryWithDetails, patch: ServingPatch) {
+    setEntries((current) => applyServingPatch(current, entry.id, patch))
     try {
       await updatePlanEntry(entry.id, patch)
-    } catch (err) {
-      setError(getErrorMessage(err))
+    } catch (caught) {
+      setError(getErrorMessage(caught))
+      await reloadEntries()
     }
   }
 
-  async function handleRemove(entry: PlanEntryWithMeal) {
-    setEntries((prev) => prev.filter((e) => e.id !== entry.id))
+  async function handleExactQuantity(entry: PlanEntryWithDetails, quantity: number) {
+    try {
+      await updateLoosePlanEntry(entry.id, quantity)
+      await reloadEntries()
+    } catch (caught) {
+      setError(getErrorMessage(caught))
+    }
+  }
+
+  async function handleRemove(entry: PlanEntryWithDetails) {
+    setEntries((current) => current.filter((candidate) => candidate.id !== entry.id))
     try {
       await deletePlanEntry(entry.id)
-    } catch (err) {
-      setError(getErrorMessage(err))
+    } catch (caught) {
+      setError(getErrorMessage(caught))
+      await reloadEntries()
     }
   }
 
   const daysInThisMonth = useMemo(
-    () => weeks.flat().filter((d) => d.getMonth() === month.getMonth()),
+    () => weeks.flat().filter((day) => day.getMonth() === month.getMonth()),
     [weeks, month],
   )
 
   const entriesByDate = useMemo(() => {
-    const map = new Map<string, PlanEntryWithMeal[]>()
+    const map = new Map<string, PlanEntryWithDetails[]>()
     for (const entry of entries) {
-      const arr = map.get(entry.date) ?? []
-      arr.push(entry)
-      map.set(entry.date, arr)
+      const items = map.get(entry.date) ?? []
+      items.push(entry)
+      map.set(entry.date, items)
     }
     return map
   }, [entries])
@@ -112,7 +139,7 @@ export function MonthCalendar({ person }: Props) {
   const totalsByDate = useMemo(() => {
     const map = new Map<string, number>()
     for (const entry of entries) {
-      const totals = computePlanEntryTotals(entry.meal.lines, entry)
+      const totals = computePlanEntryDetailsTotals(entry)
       map.set(entry.date, (map.get(entry.date) ?? 0) + totals.kcal)
     }
     return map
@@ -120,23 +147,28 @@ export function MonthCalendar({ person }: Props) {
 
   const chartData = useMemo(
     () =>
-      daysInThisMonth.map((d) => ({
-        day: d.getDate(),
-        kcal: round1(totalsByDate.get(toISODate(d)) ?? 0),
+      daysInThisMonth.map((day) => ({
+        day: day.getDate(),
+        kcal: round1(totalsByDate.get(toISODate(day)) ?? 0),
       })),
     [daysInThisMonth, totalsByDate],
   )
 
-  const daysWithData = daysInThisMonth.filter((d) => (totalsByDate.get(toISODate(d)) ?? 0) > 0)
-  const monthTotal = daysWithData.reduce((sum, d) => sum + (totalsByDate.get(toISODate(d)) ?? 0), 0)
+  const daysWithData = daysInThisMonth.filter(
+    (day) => (entriesByDate.get(toISODate(day))?.length ?? 0) > 0,
+  )
+  const monthTotal = daysWithData.reduce(
+    (sum, day) => sum + (totalsByDate.get(toISODate(day)) ?? 0),
+    0,
+  )
   const avgKcal = daysWithData.length > 0 ? monthTotal / daysWithData.length : 0
   const monthCost = useMemo(
-    () => sumTotals(entries.map((e) => computePlanEntryTotals(e.meal.lines, e))).cost,
+    () => sumTotals(entries.map(computePlanEntryDetailsTotals)).cost,
     [entries],
   )
 
   const selectedDay = useMemo(
-    () => daysInThisMonth.find((d) => toISODate(d) === selectedDate) ?? null,
+    () => daysInThisMonth.find((day) => toISODate(day) === selectedDate) ?? null,
     [daysInThisMonth, selectedDate],
   )
   const selectedEntries = entriesByDate.get(selectedDate) ?? []
@@ -144,16 +176,25 @@ export function MonthCalendar({ person }: Props) {
   return (
     <>
       <div className="mb-3.5 flex items-center justify-between">
-        <button onClick={() => setMonth(addMonths(month, -1))} className="px-2 py-1 font-bold text-accent">
+        <button
+          type="button"
+          onClick={() => setMonth(addMonths(month, -1))}
+          className="px-2 py-1 font-bold text-accent"
+        >
           ← anterior
         </button>
         <p className="text-sm font-bold text-ink capitalize">{monthLabel(month)}</p>
-        <button onClick={() => setMonth(addMonths(month, 1))} className="px-2 py-1 font-bold text-accent">
+        <button
+          type="button"
+          onClick={() => setMonth(addMonths(month, 1))}
+          className="px-2 py-1 font-bold text-accent"
+        >
           siguiente →
         </button>
       </div>
 
       {error && <p className="mb-3 rounded-2xl bg-surface p-3 text-sm text-over">{error}</p>}
+      <PlanActionNotice notice={householdActions.notice} onUndo={householdActions.undoCopies} />
 
       {loading ? (
         <p className="py-8 text-center text-muted">Cargando…</p>
@@ -161,28 +202,27 @@ export function MonthCalendar({ person }: Props) {
         <>
           <div className="mb-4 rounded-[20px] bg-surface p-2">
             <div className="mb-1 grid grid-cols-7 gap-1 text-center text-xs font-bold text-muted">
-              {WEEKDAY_HEADERS.map((h) => (
-                <span key={h}>{h}</span>
+              {WEEKDAY_HEADERS.map((header) => (
+                <span key={header}>{header}</span>
               ))}
             </div>
             <div className="flex flex-col gap-1">
-              {weeks.map((week, i) => (
-                <div key={i} className="grid grid-cols-7 gap-1">
+              {weeks.map((week, index) => (
+                <div key={index} className="grid grid-cols-7 gap-1">
                   {week.map((day) => {
                     const dateISO = toISODate(day)
                     const inMonth = day.getMonth() === month.getMonth()
                     const dayEntries = entriesByDate.get(dateISO) ?? []
-                    const mealText = dayEntries.map((e) => e.meal.name).join(' · ')
+                    const mealText = dayEntries.map(entryLabel).join(' · ')
                     const isToday = dateISO === todayISO
                     const isSelected = dateISO === selectedDate
 
                     return (
                       <button
+                        type="button"
                         key={dateISO}
                         onClick={() => setSelectedDate(dateISO)}
-                        className={`flex min-h-16 flex-col items-start rounded-xl p-1 text-left transition-colors ${
-                          inMonth ? 'bg-bg' : 'bg-transparent'
-                        } ${isSelected ? 'ring-2 ring-accent' : isToday ? 'ring-1 ring-sage' : ''}`}
+                        className={`flex min-h-16 flex-col items-start rounded-xl p-1 text-left transition-colors ${inMonth ? 'bg-bg' : 'bg-transparent'} ${isSelected ? 'ring-2 ring-accent' : isToday ? 'ring-1 ring-sage' : ''}`}
                       >
                         <span className={`text-[11px] font-bold ${inMonth ? 'text-ink' : 'text-track'}`}>
                           {day.getDate()}
@@ -205,24 +245,33 @@ export function MonthCalendar({ person }: Props) {
               <p className="mb-2 font-bold text-ink capitalize">{dayLabel(selectedDay)}</p>
               <div className="flex flex-col gap-3">
                 {MEAL_TYPES.map((mealType) => {
-                  const slot = selectedEntries.filter((e) => e.meal_type === mealType)
+                  const slot = selectedEntries.filter((entry) => entry.meal_type === mealType)
                   return (
                     <div key={mealType} className="flex flex-col gap-2">
                       {slot.map((entry) => (
                         <PlanEntryRow
                           key={entry.id}
                           entry={entry}
-                          onChangePortion={(p) => handlePatch(entry, { portion: p, override_grams: null })}
-                          onChangeGrams={(g) => handlePatch(entry, { portion: null, override_grams: g })}
-                          onUseGrams={() => handlePatch(entry, { portion: null, override_grams: 100 })}
-                          onUsePortion={() => handlePatch(entry, { portion: 1, override_grams: null })}
+                          onChangeServings={(servings) =>
+                            handlePatch(entry, buildServingPatch(servings))
+                          }
+                          onChangeExactQuantity={(quantity) =>
+                            handleExactQuantity(entry, quantity)
+                          }
                           onRemove={() => handleRemove(entry)}
+                          onReplaceLegacy={() => handleRemove(entry)}
                         />
                       ))}
-                      <AddMealButton
+                      <PlanEntryComposer
                         mealType={mealType}
                         meals={meals}
-                        onAdd={(meal) => handleAdd(selectedDate, mealType, meal)}
+                        ingredients={ingredients}
+                        people={people}
+                        currentPersonId={person.id}
+                        onAdd={(item) => handleAdd(selectedDate, mealType, item)}
+                        onEatingOut={(personIds) =>
+                          handleEatingOut(selectedDate, mealType, personIds)
+                        }
                       />
                     </div>
                   )
@@ -232,7 +281,8 @@ export function MonthCalendar({ person }: Props) {
           )}
 
           <button
-            onClick={() => setShowStats((v) => !v)}
+            type="button"
+            onClick={() => setShowStats((current) => !current)}
             className="mb-3 w-full rounded-2xl bg-surface py-2.5 text-sm font-bold text-muted"
           >
             {showStats ? 'Ocultar estadísticas ▲' : 'Ver estadísticas ▼'}
@@ -259,8 +309,8 @@ export function MonthCalendar({ person }: Props) {
                     <XAxis dataKey="day" tick={{ fontSize: 10 }} interval={2} />
                     <YAxis tick={{ fontSize: 10 }} width={32} />
                     <Tooltip
-                      formatter={(v) => [`${v} kcal`, 'Kcal']}
-                      labelFormatter={(d) => `Día ${d}`}
+                      formatter={(value) => [`${value} kcal`, 'Kcal']}
+                      labelFormatter={(day) => `Día ${day}`}
                     />
                     <ReferenceLine y={person.target_kcal} stroke="#C1613A" strokeDasharray="4 4" />
                     <Bar dataKey="kcal" fill="#7E9468" radius={[3, 3, 0, 0]} />

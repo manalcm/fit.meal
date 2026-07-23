@@ -28,6 +28,7 @@ export function ImportIngredientsPage() {
   const [exporting, setExporting] = useState(false)
   const [deletingAll, setDeletingAll] = useState(false)
   const [deleteMessage, setDeleteMessage] = useState('')
+  const [deleteBlocked, setDeleteBlocked] = useState<{ name: string; mealNames: string[] }[]>([])
 
   function normalizeName(name: string): string {
     return name.trim().toLowerCase().replace(/\s+/g, ' ')
@@ -74,20 +75,37 @@ export function ImportIngredientsPage() {
 
   async function handleDeleteAllIngredients() {
     const confirmed = confirm(
-      'Esto borrara todos tus ingredientes y tambien los ingredientes dentro de tus recetas. Tus platos seguiran existiendo, pero sin lista de ingredientes. Quieres continuar?',
+      'Se eliminarán únicamente los ingredientes que no se utilicen en ningún plato ni planificación. Los ingredientes usados se conservarán. ¿Quieres continuar?',
     )
     if (!confirmed) return
 
-    const confirmedAgain = confirm('Ultima confirmacion: seguro que quieres vaciar todos los ingredientes?')
+    const confirmedAgain = confirm(
+      'Última confirmación: ¿quieres vaciar todos los ingredientes que se puedan eliminar de forma segura?',
+    )
     if (!confirmedAgain) return
 
     setDeletingAll(true)
     setDeleteMessage('')
+    setDeleteBlocked([])
     setError('')
     try {
-      await deleteAllIngredients()
+      const beforeDelete = await listIngredients()
+      const names = new Map(beforeDelete.map((ingredient) => [ingredient.id, ingredient.name]))
+      const result = await deleteAllIngredients()
       setExistingCount(0)
-      setDeleteMessage('Hecho: se han eliminado todos los ingredientes de esta cuenta.')
+      const deletedText = result.deleted_ids.length === 1
+        ? 'Se eliminó 1 ingrediente.'
+        : `Se eliminaron ${result.deleted_ids.length} ingredientes.`
+      const blockedText = result.blocked.length === 1
+        ? 'No se eliminó 1 porque se utiliza en platos o planificaciones.'
+        : `No se eliminaron ${result.blocked.length} porque se utilizan en platos o planificaciones.`
+      setDeleteMessage(`${deletedText} ${blockedText}`)
+      setDeleteBlocked(
+        result.blocked.map((blocked) => ({
+          name: names.get(blocked.ingredient_id) ?? 'Ingrediente',
+          mealNames: blocked.meal_names,
+        })),
+      )
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -136,6 +154,7 @@ export function ImportIngredientsPage() {
           in_pantry: false,
           package_price: b.package_price ?? null,
           package_size: b.package_size ?? null,
+          package_unit: b.package_unit ?? (b.package_size != null ? b.default_unit : null),
         })),
         'skip',
       )
@@ -158,14 +177,14 @@ export function ImportIngredientsPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 pt-4 pb-24">
       <div className="mb-4 flex items-center gap-2">
-        <Link to="/ingredientes" className="font-bold text-accent">
-          ← Ingredientes
+        <Link to="/ajustes" className="font-bold text-accent">
+          ← Ajustes
         </Link>
       </div>
       <p className="mb-1 font-serif text-[27px] leading-none font-medium text-ink italic">
-        CSV
+        Importar y exportar ingredientes
       </p>
-      <p className="mb-3 text-sm text-muted">Importa ingredientes nuevos o exporta tu lista actual.</p>
+      <p className="mb-3 text-sm text-muted">Gestiona los ingredientes y sus archivos CSV.</p>
 
       {step === 'elegir' && (
         <div className="mt-3 flex flex-col gap-4">
@@ -204,7 +223,7 @@ export function ImportIngredientsPage() {
           <div className="rounded-2xl bg-surface p-4">
             <p className="mb-2 font-bold text-over">Vaciar ingredientes</p>
             <p className="mb-3 text-sm text-muted">
-              Elimina todos los ingredientes de esta cuenta para empezar de cero antes de importar un CSV nuevo.
+              Elimina los ingredientes que no se utilicen en platos ni planificaciones. Los ingredientes usados en platos o planificaciones se conservarán para evitar referencias rotas.
             </p>
             <button
               onClick={handleDeleteAllIngredients}
@@ -214,6 +233,15 @@ export function ImportIngredientsPage() {
               {deletingAll ? 'Eliminando...' : 'Eliminar todos los ingredientes'}
             </button>
             {deleteMessage && <p className="mt-2 text-sm text-muted">{deleteMessage}</p>}
+            {deleteBlocked.length > 0 && (
+              <ul className="mt-2 flex flex-col gap-1 text-xs text-muted">
+                {deleteBlocked.map((blocked) => (
+                  <li key={blocked.name}>
+                    <b className="text-ink">{blocked.name}</b> — {blocked.mealNames.join(', ')}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <div className="rounded-2xl bg-surface p-4">

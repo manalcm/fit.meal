@@ -3,7 +3,12 @@ import type { FormEvent } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { listIngredients } from '../lib/ingredients'
 import { getMeal, createMeal, updateMeal, deleteMeal, uploadMealPhoto } from '../lib/meals'
-import { computeMealTotals, round1 } from '../lib/calculations'
+import {
+  computeMealPerServingTotals,
+  computeMealTotals,
+  ingredientQuantityPerServing,
+  round1,
+} from '../lib/calculations'
 import { MEAL_TYPES, MEAL_TYPE_LABELS } from '../data/mealTypes'
 import { getErrorMessage } from '../lib/errors'
 import type { Ingredient, MealType } from '../types/database'
@@ -30,6 +35,7 @@ export function MealFormPage() {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [lines, setLines] = useState<Line[]>([])
+  const [recipeServings, setRecipeServings] = useState('1')
 
   const [allIngredients, setAllIngredients] = useState<Ingredient[]>([])
   const [search, setSearch] = useState('')
@@ -46,6 +52,7 @@ export function MealFormPage() {
         setMealTypes(meal.meal_types)
         setNotes(meal.notes ?? '')
         setPhotoUrl(meal.photo_url)
+        setRecipeServings(String(meal.recipe_servings ?? 1))
         setLines(meal.lines.map((l) => ({ ingredient: l.ingredient, quantity_grams: l.quantity_grams })))
       })
       .catch((err) => setError(getErrorMessage(err)))
@@ -62,6 +69,11 @@ export function MealFormPage() {
   }, [search, allIngredients, lines])
 
   const totals = useMemo(() => computeMealTotals(lines), [lines])
+  const servingsNumber = Number(recipeServings.replace(',', '.'))
+  const perServingTotals = useMemo(
+    () => computeMealPerServingTotals(lines, servingsNumber),
+    [lines, servingsNumber],
+  )
 
   function toggleMealType(t: MealType) {
     setMealTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]))
@@ -102,9 +114,19 @@ export function MealFormPage() {
       setError('Ponle un nombre al plato.')
       return
     }
+    if (!Number.isFinite(servingsNumber) || servingsNumber <= 0) {
+      setError('Indica cuántas raciones produce la receta.')
+      return
+    }
     setSaving(true)
     setError('')
-    const input = { name: name.trim(), meal_types: mealTypes, photo_url: photoUrl, notes: notes.trim() || null }
+    const input = {
+      name: name.trim(),
+      meal_types: mealTypes,
+      photo_url: photoUrl,
+      notes: notes.trim() || null,
+      recipe_servings: servingsNumber,
+    }
     const lineInputs = lines.map((l) => ({ ingredient_id: l.ingredient.id, quantity_grams: l.quantity_grams }))
     try {
       if (isNew) {
@@ -192,6 +214,21 @@ export function MealFormPage() {
           />
         </label>
 
+        <label className="flex flex-col gap-1 text-sm text-ink">
+          ¿Cuántas raciones produce esta receta?
+          <input
+            type="number"
+            min="0.1"
+            step="0.1"
+            inputMode="decimal"
+            required
+            className="rounded-xl border border-track bg-surface px-3 py-2 text-base text-ink"
+            value={recipeServings}
+            onChange={(e) => setRecipeServings(e.target.value)}
+            placeholder="Ej. 4"
+          />
+        </label>
+
         <div>
           <p className="mb-1 text-sm font-bold text-ink">Ingredientes</p>
           <div className="relative">
@@ -234,6 +271,11 @@ export function MealFormPage() {
                 <span className="w-16 text-right text-xs text-muted">
                   {round1((l.ingredient.kcal_per_100g * l.quantity_grams) / 100)} kcal
                 </span>
+                {servingsNumber > 0 && (
+                  <span className="w-20 text-right text-[10px] text-muted">
+                    {round1(ingredientQuantityPerServing(l.quantity_grams, servingsNumber))} g/ración
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={() => removeLine(l.ingredient.id)}
@@ -256,7 +298,19 @@ export function MealFormPage() {
             {round1(totals.kcal)} kcal · Proteína {round1(totals.protein)} g · Carbohidratos{' '}
             {round1(totals.carbs)} g · Grasa {round1(totals.fat)} g
           </p>
-          {totals.cost > 0 && <p className="text-xs text-muted">Coste estimado: {round1(totals.cost)} €</p>}
+          {totals.cost > 0 && <p className="text-xs text-muted">Coste total: {round1(totals.cost)} €</p>}
+          {servingsNumber > 0 && (
+            <div className="mt-2 border-t border-track pt-2">
+              <p className="font-serif text-base text-ink italic">Por ración</p>
+              <p className="text-sm text-muted">
+                {round1(perServingTotals.kcal)} kcal · Proteína {round1(perServingTotals.protein)} g ·{' '}
+                Carbohidratos {round1(perServingTotals.carbs)} g · Grasa {round1(perServingTotals.fat)} g
+              </p>
+              {totals.cost > 0 && (
+                <p className="text-xs text-muted">Coste por ración: {round1(perServingTotals.cost)} €</p>
+              )}
+            </div>
+          )}
         </div>
 
         {error && <p className="rounded-2xl bg-surface p-3 text-sm text-over">{error}</p>}

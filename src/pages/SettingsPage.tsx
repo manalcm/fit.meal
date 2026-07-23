@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { createPerson, listPeople } from '../lib/people'
 import { getErrorMessage } from '../lib/errors'
 import { PersonCard } from '../components/PersonCard'
@@ -11,12 +12,15 @@ const COLORS = ['#C1613A', '#7E9468', '#B98A3E', '#5B7145']
 
 export function SettingsPage() {
   const { user, signOut } = useAuth()
-  const { activeHousehold } = useHousehold()
+  const { activeHousehold, updateWeeklyBudget } = useHousehold()
   const { reload: reloadSelectedPerson } = usePerson()
   const [people, setPeople] = useState<Person[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
+  const [weeklyBudget, setWeeklyBudget] = useState('')
+  const [savingBudget, setSavingBudget] = useState(false)
+  const [budgetStatus, setBudgetStatus] = useState('')
 
   async function reload() {
     setLoading(true)
@@ -33,6 +37,32 @@ export function SettingsPage() {
   useEffect(() => {
     reload()
   }, [activeHousehold?.id])
+
+  useEffect(() => {
+    setWeeklyBudget(
+      activeHousehold?.weekly_budget == null ? '' : String(activeHousehold.weekly_budget),
+    )
+    setBudgetStatus('')
+  }, [activeHousehold?.id, activeHousehold?.weekly_budget])
+
+  async function handleBudgetSave() {
+    const normalized = weeklyBudget.trim().replace(',', '.')
+    const budget = normalized === '' ? null : Number(normalized)
+    if (budget != null && (!Number.isFinite(budget) || budget < 0)) {
+      setBudgetStatus('Introduce un presupuesto válido que no sea negativo.')
+      return
+    }
+    setSavingBudget(true)
+    setBudgetStatus('')
+    try {
+      await updateWeeklyBudget(budget)
+      setBudgetStatus(budget == null ? 'Presupuesto desactivado.' : 'Presupuesto guardado.')
+    } catch (caught) {
+      setBudgetStatus(getErrorMessage(caught))
+    } finally {
+      setSavingBudget(false)
+    }
+  }
 
   function handleSaved(updated: Person) {
     setPeople((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
@@ -57,6 +87,7 @@ export function SettingsPage() {
         target_carbs: 200,
         target_fat: 60,
         target_water_ml: 2000,
+        show_water_tracking: true,
       })
       setPeople((prev) => [...prev, person])
     } catch (err) {
@@ -80,6 +111,50 @@ export function SettingsPage() {
         <button onClick={signOut} className="self-start text-sm font-bold text-muted">
           Cerrar sesión
         </button>
+      </div>
+
+      <div className="mb-4 rounded-[20px] bg-surface p-4">
+        <p className="text-xs font-bold tracking-[0.1em] text-muted uppercase">
+          Presupuesto semanal de compra
+        </p>
+        <p className="mt-1 text-xs text-muted">
+          Es opcional y se comparte entre todas las personas de la casa.
+        </p>
+        <div className="mt-3 flex items-end gap-2">
+          <label className="flex-1 text-sm text-ink">
+            Importe (€)
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              value={weeklyBudget}
+              onChange={(event) => setWeeklyBudget(event.target.value)}
+              placeholder="Sin presupuesto"
+              className="mt-1 w-full rounded-xl bg-bg px-3 py-2 text-base text-ink"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={handleBudgetSave}
+            disabled={savingBudget}
+            className="rounded-xl bg-ink px-4 py-2.5 text-sm font-bold text-cream disabled:opacity-50"
+          >
+            {savingBudget ? 'Guardando…' : 'Guardar'}
+          </button>
+        </div>
+        {budgetStatus && <p className="mt-2 text-xs text-muted">{budgetStatus}</p>}
+      </div>
+
+      <div className="mb-4 rounded-[20px] bg-surface p-4">
+        <p className="text-xs font-bold tracking-[0.1em] text-muted uppercase">Gestión de datos</p>
+        <Link
+          to="/ingredientes/importar"
+          className="mt-3 flex items-center justify-between rounded-2xl bg-bg px-4 py-3 text-sm font-bold text-accent"
+        >
+          <span>Importar y exportar ingredientes</span>
+          <span aria-hidden="true">→</span>
+        </Link>
       </div>
 
       <div className="mb-3.5 flex items-center justify-between">

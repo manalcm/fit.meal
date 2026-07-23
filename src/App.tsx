@@ -33,10 +33,10 @@ function AnimatedRoutes() {
 }
 
 function AppContent() {
-  const { session, loading: authLoading } = useAuth()
+  const { session, loading: authLoading, recoveryMode } = useAuth()
 
   if (authLoading) return <p className="min-h-dvh bg-bg py-12 text-center text-muted">Cargando...</p>
-  if (!session) return <AuthPage />
+  if (recoveryMode || !session) return <AuthPage />
 
   return (
     <HouseholdProvider>

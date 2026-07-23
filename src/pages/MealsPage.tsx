@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { listMeals, type MealWithLines } from '../lib/meals'
-import { computeMealTotals, round1 } from '../lib/calculations'
+import { computeMealPerServingTotals, round1 } from '../lib/calculations'
 import { MEAL_TYPES, MEAL_TYPE_LABELS, MEAL_TYPE_TAG_COLORS } from '../data/mealTypes'
 import { getErrorMessage } from '../lib/errors'
 import type { MealType } from '../types/database'
@@ -64,7 +64,7 @@ export function MealsPage() {
       {!loading && !error && (
         <ul className="flex flex-col gap-2.5">
           {filtered.map((meal) => {
-            const totals = computeMealTotals(meal.lines)
+            const totals = computeMealPerServingTotals(meal.lines, meal.recipe_servings)
             const tagColor = meal.meal_types[0] ? MEAL_TYPE_TAG_COLORS[meal.meal_types[0]] : 'var(--color-muted)'
             return (
               <li key={meal.id}>
@@ -84,7 +84,7 @@ export function MealsPage() {
                     <p className="truncate font-bold text-ink">{meal.name}</p>
                     <p className="text-xs text-muted">
                       {meal.meal_types.map((t) => MEAL_TYPE_LABELS[t]).join(' · ') || 'Sin franja'} ·{' '}
-                      {round1(totals.kcal)} kcal
+                      {round1(totals.kcal)} kcal/ración · {meal.recipe_servings} raciones
                     </p>
                   </div>
                 </button>

@@ -12,6 +12,7 @@ export interface Household {
   name: string
   invite_code: string
   created_by: string | null
+  weekly_budget: number | null
   created_at: string
 }
 
@@ -26,6 +27,7 @@ interface HouseholdContextValue {
   selectHousehold: (id: string) => void
   reload: () => Promise<void>
   createHousehold: (name: string) => Promise<void>
+  updateWeeklyBudget: (budget: number | null) => Promise<void>
 }
 
 const HouseholdContext = createContext<HouseholdContextValue | null>(null)
@@ -112,6 +114,24 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         setActiveId(household.id)
         localStorage.setItem(STORAGE_KEY, household.id)
         setActiveHouseholdId(household.id)
+      },
+      async updateWeeklyBudget(budget) {
+        if (!activeHousehold) throw new Error('Selecciona un hogar antes de continuar.')
+        if (budget != null && (!Number.isFinite(budget) || budget < 0)) {
+          throw new Error('El presupuesto no puede ser negativo.')
+        }
+        const { data, error } = await supabase
+          .from('households')
+          .update({ weekly_budget: budget })
+          .eq('id', activeHousehold.id)
+          .select('*')
+          .single()
+        if (error) throw error
+        setHouseholds((current) =>
+          current.map((household) =>
+            household.id === data.id ? (data as Household) : household,
+          ),
+        )
       },
     }),
     [activeHousehold, households, loading],

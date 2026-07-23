@@ -20,6 +20,7 @@ export function PersonCard({ person, onSaved, onDeleted }: Props) {
   const [carbs, setCarbs] = useState(String(person.target_carbs))
   const [fat, setFat] = useState(String(person.target_fat))
   const [water, setWater] = useState(String(person.target_water_ml))
+  const [showWaterTracking, setShowWaterTracking] = useState(person.show_water_tracking)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
@@ -32,6 +33,7 @@ export function PersonCard({ person, onSaved, onDeleted }: Props) {
     setCarbs(String(person.target_carbs))
     setFat(String(person.target_fat))
     setWater(String(person.target_water_ml))
+    setShowWaterTracking(person.show_water_tracking)
     setError('')
     setEditing(true)
   }
@@ -48,6 +50,7 @@ export function PersonCard({ person, onSaved, onDeleted }: Props) {
         target_carbs: Number(carbs) || 0,
         target_fat: Number(fat) || 0,
         target_water_ml: Number(water) || 0,
+        show_water_tracking: showWaterTracking,
       }
       const updated = await updatePerson(person.id, input)
       onSaved(updated)
@@ -91,9 +94,11 @@ export function PersonCard({ person, onSaved, onDeleted }: Props) {
           <div className="rounded-2xl bg-bg px-3 py-2">
             Kcal <b className="text-ink">{person.target_kcal}</b>
           </div>
-          <div className="rounded-2xl bg-bg px-3 py-2">
-            Agua <b className="text-ink">{person.target_water_ml}</b>
-          </div>
+          {person.show_water_tracking && (
+            <div className="rounded-2xl bg-bg px-3 py-2">
+              Agua <b className="text-ink">{person.target_water_ml}</b>
+            </div>
+          )}
           <div className="rounded-2xl bg-bg px-3 py-2">
             Prot. <b className="text-ink">{person.target_protein}g</b>
           </div>
@@ -179,6 +184,19 @@ export function PersonCard({ person, onSaved, onDeleted }: Props) {
           />
         </label>
       </div>
+
+      <label className="flex items-center justify-between gap-3 rounded-2xl bg-bg px-3 py-3 text-sm text-ink">
+        <span>
+          <b className="block">Mostrar seguimiento de agua</b>
+          <span className="text-xs text-muted">Ocultarlo no borra el objetivo ni los registros.</span>
+        </span>
+        <input
+          type="checkbox"
+          checked={showWaterTracking}
+          onChange={(event) => setShowWaterTracking(event.target.checked)}
+          className="h-5 w-5 flex-none accent-sage"
+        />
+      </label>
 
       {error && <p className="text-sm text-over">{error}</p>}
 
