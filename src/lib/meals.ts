@@ -1,14 +1,18 @@
 import { supabase } from './supabase'
-import type { Ingredient, Meal, MealType } from '../types/database'
+import type { Ingredient, IngredientUnit, Meal, MealType } from '../types/database'
 import { requireActiveHouseholdId } from './householdScope'
 
 export interface MealIngredientLine {
   ingredient_id: string
   quantity_grams: number
+  quantity: number
+  unit: IngredientUnit
 }
 
 export interface MealLineWithIngredient {
   quantity_grams: number
+  quantity?: number
+  unit?: IngredientUnit
   ingredient: Ingredient
 }
 
@@ -24,7 +28,7 @@ export interface MealInput {
   recipe_servings: number
 }
 
-const MEAL_SELECT = '*, meal_ingredients(quantity_grams, ingredient:ingredients(*))'
+const MEAL_SELECT = '*, meal_ingredients(quantity_grams, quantity, unit, ingredient:ingredients(*))'
 
 interface RawMealRow extends Meal {
   meal_ingredients: MealLineWithIngredient[]
@@ -101,7 +105,11 @@ async function replaceMealIngredients(mealId: string, lines: MealIngredientLine[
       household_id: householdId,
       meal_id: mealId,
       ingredient_id: line.ingredient_id,
-      quantity_grams: line.quantity_grams,
+      // quantity_grams se mantiene para que los platos antiguos sigan siendo
+      // totalmente compatibles. Las recetas nuevas usan quantity + unit.
+      quantity_grams: line.quantity,
+      quantity: line.quantity,
+      unit: line.unit,
     })),
   )
   if (insertError) throw insertError

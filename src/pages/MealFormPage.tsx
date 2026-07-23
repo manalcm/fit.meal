@@ -6,17 +6,20 @@ import { getMeal, createMeal, updateMeal, deleteMeal, uploadMealPhoto } from '..
 import {
   computeMealPerServingTotals,
   computeMealTotals,
+  computeIngredientQuantityTotals,
   ingredientQuantityPerServing,
   round1,
 } from '../lib/calculations'
 import { MEAL_TYPES, MEAL_TYPE_LABELS } from '../data/mealTypes'
 import { getErrorMessage } from '../lib/errors'
-import type { Ingredient, MealType } from '../types/database'
+import type { Ingredient, IngredientUnit, MealType } from '../types/database'
 import { useHousehold } from '../lib/HouseholdContext'
 
 interface Line {
   ingredient: Ingredient
   quantity_grams: number
+  quantity: number
+  unit: IngredientUnit
 }
 
 export function MealFormPage() {
@@ -53,7 +56,12 @@ export function MealFormPage() {
         setNotes(meal.notes ?? '')
         setPhotoUrl(meal.photo_url)
         setRecipeServings(String(meal.recipe_servings ?? 1))
-        setLines(meal.lines.map((l) => ({ ingredient: l.ingredient, quantity_grams: l.quantity_grams })))
+        setLines(meal.lines.map((l) => ({
+          ingredient: l.ingredient,
+          quantity_grams: l.quantity_grams,
+          quantity: l.quantity ?? l.quantity_grams,
+          unit: l.unit ?? 'gramos',
+        })))
       })
       .catch((err) => setError(getErrorMessage(err)))
       .finally(() => setLoading(false))
@@ -80,13 +88,23 @@ export function MealFormPage() {
   }
 
   function addIngredient(ingredient: Ingredient) {
-    setLines((prev) => [...prev, { ingredient, quantity_grams: 100 }])
+    const quantity = ingredient.default_unit === 'unidad' ? 1 : 100
+    setLines((prev) => [...prev, {
+      ingredient,
+      quantity_grams: quantity,
+      quantity,
+      unit: ingredient.default_unit,
+    }])
     setSearch('')
   }
 
-  function updateGrams(ingredientId: string, grams: number) {
+  function updateQuantity(ingredientId: string, quantity: number) {
     setLines((prev) =>
-      prev.map((l) => (l.ingredient.id === ingredientId ? { ...l, quantity_grams: grams } : l)),
+      prev.map((l) => (l.ingredient.id === ingredientId ? {
+        ...l,
+        quantity,
+        quantity_grams: quantity,
+      } : l)),
     )
   }
 
@@ -127,7 +145,12 @@ export function MealFormPage() {
       notes: notes.trim() || null,
       recipe_servings: servingsNumber,
     }
-    const lineInputs = lines.map((l) => ({ ingredient_id: l.ingredient.id, quantity_grams: l.quantity_grams }))
+    const lineInputs = lines.map((l) => ({
+      ingredient_id: l.ingredient.id,
+      quantity_grams: l.quantity,
+      quantity: l.quantity,
+      unit: l.unit,
+    }))
     try {
       if (isNew) {
         await createMeal(input, lineInputs)
@@ -248,7 +271,9 @@ export function MealFormPage() {
                       className="flex w-full justify-between px-3 py-2 text-left text-sm text-ink hover:bg-bg"
                     >
                       <span>{ing.name}</span>
-                      <span className="text-muted">{ing.kcal_per_100g} kcal/100g</span>
+                      <span className="text-muted">
+                        {ing.kcal_per_100g} kcal/{ing.nutrition_unit === 'unidad' ? 'unidad' : `100 ${ing.nutrition_unit === 'ml' ? 'ml' : 'g'}`}
+                      </span>
                     </button>
                   </li>
                 ))}
@@ -264,16 +289,21 @@ export function MealFormPage() {
                   type="number"
                   inputMode="decimal"
                   className="w-20 rounded-lg border border-track bg-bg px-2 py-1 text-right text-sm text-ink"
-                  value={l.quantity_grams}
-                  onChange={(e) => updateGrams(l.ingredient.id, Number(e.target.value))}
+                  value={l.quantity}
+                  min="0.1"
+                  step={l.unit === 'unidad' ? '1' : '0.1'}
+                  onChange={(e) => updateQuantity(l.ingredient.id, Number(e.target.value))}
                 />
-                <span className="w-10 text-xs text-muted">g</span>
+                <span className="w-10 text-xs text-muted">
+                  {l.unit === 'unidad' ? 'ud.' : l.unit === 'ml' ? 'ml' : 'g'}
+                </span>
                 <span className="w-16 text-right text-xs text-muted">
-                  {round1((l.ingredient.kcal_per_100g * l.quantity_grams) / 100)} kcal
+                  {round1(computeIngredientQuantityTotals(l.ingredient, l.quantity, l.unit).kcal)} kcal
                 </span>
                 {servingsNumber > 0 && (
                   <span className="w-20 text-right text-[10px] text-muted">
-                    {round1(ingredientQuantityPerServing(l.quantity_grams, servingsNumber))} g/ración
+                    {round1(ingredientQuantityPerServing(l.quantity, servingsNumber))}{' '}
+                    {l.unit === 'unidad' ? 'ud.' : l.unit === 'ml' ? 'ml' : 'g'}/ración
                   </span>
                 )}
                 <button

@@ -29,6 +29,8 @@ export interface Ingredient {
   protein_per_100g: number
   carbs_per_100g: number
   fat_per_100g: number
+  /** Unidad a la que corresponden los valores nutricionales almacenados. */
+  nutrition_unit: IngredientUnit
   price_per_kg: number | null
   default_unit: IngredientUnit
   grams_per_unit: number | null
@@ -56,6 +58,8 @@ export interface MealIngredient {
   meal_id: string
   ingredient_id: string
   quantity_grams: number
+  quantity: number
+  unit: IngredientUnit
 }
 
 export interface Person {

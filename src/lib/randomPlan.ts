@@ -4,6 +4,7 @@ import type { PlanEntryWithDetails } from './planEntries'
 import {
   computeMealPerServingTotals,
   computePlanEntryDetailsTotals,
+  scaleTotals,
   sumTotals,
   type Totals,
 } from './calculations'
@@ -17,6 +18,14 @@ export interface SurpriseAssignment {
 export interface SurpriseCandidate {
   meal: MealWithLines
   assignments: SurpriseAssignment[]
+}
+
+export const SURPRISE_DAY_SLOTS: MealType[] = ['desayuno', 'almuerzo', 'snack', 'cena']
+
+export interface SurpriseDaySlot {
+  mealType: MealType
+  candidate: SurpriseCandidate | null
+  occupiedPersonNames: string[]
 }
 
 export function remainingMacrosForPerson(
@@ -95,4 +104,68 @@ export function chooseSurpriseCandidate(
   if (candidates.length === 0) return null
   const index = Math.min(candidates.length - 1, Math.floor(random() * candidates.length))
   return candidates[index]
+}
+
+/**
+ * Construye el día en orden. Cada propuesta descuenta sus macros antes de
+ * buscar la siguiente, de modo que el conjunto no puede pasarse del objetivo.
+ */
+export function chooseSurpriseDay(
+  meals: MealWithLines[],
+  people: Person[],
+  currentPersonId: string,
+  copyToHousehold: boolean,
+  dayEntries: PlanEntryWithDetails[],
+  random: () => number = Math.random,
+): SurpriseDaySlot[] {
+  const remaining = new Map(people.map((person) => [
+    person.id,
+    remainingMacrosForPerson(person, dayEntries),
+  ]))
+
+  return SURPRISE_DAY_SLOTS.map((mealType) => {
+    const occupiedIds = new Set(
+      dayEntries.filter((entry) => entry.meal_type === mealType).map((entry) => entry.person_id),
+    )
+    const targetPeople = copyToHousehold
+      ? people.filter((person) => !occupiedIds.has(person.id))
+      : people.filter((person) => person.id === currentPersonId && !occupiedIds.has(person.id))
+    const occupiedPersonNames = people
+      .filter((person) => occupiedIds.has(person.id))
+      .map((person) => person.name)
+
+    if (targetPeople.length === 0) return { mealType, candidate: null, occupiedPersonNames }
+
+    const candidates = meals
+      .filter((meal) => meal.meal_types.includes(mealType))
+      .flatMap((meal) => {
+        const perServing = computeMealPerServingTotals(meal.lines, meal.recipe_servings)
+        const assignments: SurpriseAssignment[] = []
+        for (const person of targetPeople) {
+          const servings = servingThatFits(perServing, remaining.get(person.id)!)
+          if (servings == null) return []
+          assignments.push({ personId: person.id, personName: person.name, servings })
+        }
+        return [{ meal, assignments }]
+      })
+    const candidate = candidates.length === 0
+      ? null
+      : candidates[Math.min(candidates.length - 1, Math.floor(random() * candidates.length))]
+
+    if (candidate) {
+      const perServing = computeMealPerServingTotals(candidate.meal.lines, candidate.meal.recipe_servings)
+      for (const assignment of candidate.assignments) {
+        const current = remaining.get(assignment.personId)!
+        const used = scaleTotals(perServing, assignment.servings)
+        remaining.set(assignment.personId, {
+          kcal: current.kcal - used.kcal,
+          protein: current.protein - used.protein,
+          carbs: current.carbs - used.carbs,
+          fat: current.fat - used.fat,
+          cost: 0,
+        })
+      }
+    }
+    return { mealType, candidate, occupiedPersonNames }
+  })
 }

@@ -54,7 +54,7 @@ export interface PlanEntryForShopping {
   ingredient: Ingredient | null
   meal: {
     recipe_servings: number
-    meal_ingredients: { quantity_grams: number; ingredient: Ingredient }[]
+    meal_ingredients: { quantity_grams: number; quantity?: number; unit?: IngredientUnit; ingredient: Ingredient }[]
   } | null
 }
 
@@ -65,7 +65,7 @@ export interface IngredientRequirement {
 }
 
 const LIST_SELECT =
-  'entry_kind, exact_quantity, exact_unit, planned_servings, portion, override_grams, legacy_snapshot, ingredient:ingredients(*), meal:meals(recipe_servings, meal_ingredients(quantity_grams, ingredient:ingredients(*)))'
+  'entry_kind, exact_quantity, exact_unit, planned_servings, portion, override_grams, legacy_snapshot, ingredient:ingredients(*), meal:meals(recipe_servings, meal_ingredients(quantity_grams, quantity, unit, ingredient:ingredients(*)))'
 
 function isPositive(value: number | null): value is number {
   return value != null && Number.isFinite(value) && value > 0
@@ -254,7 +254,11 @@ export function requirementsFromPlanEntries(
     if (factor <= 0) continue
 
     for (const line of lines) {
-      addRequirement(line.ingredient, line.quantity_grams * factor, 'gramos')
+      addRequirement(
+        line.ingredient,
+        (line.quantity ?? line.quantity_grams) * factor,
+        line.unit ?? 'gramos',
+      )
     }
   }
 

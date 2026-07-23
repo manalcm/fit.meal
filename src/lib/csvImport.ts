@@ -201,6 +201,7 @@ export function parseIngredientsCsv(text: string): ParseResult {
         protein_per_100g: protein,
         carbs_per_100g: carbs,
         fat_per_100g: fat,
+        nutrition_unit: 'gramos',
         price_per_kg: price,
         default_unit: unit,
         grams_per_unit: gramsPerUnit,

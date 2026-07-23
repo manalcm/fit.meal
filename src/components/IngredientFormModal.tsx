@@ -19,6 +19,9 @@ export function IngredientFormModal({ initial, onSave, onDelete, onClose }: Prop
   const [protein, setProtein] = useState(initial ? String(initial.protein_per_100g) : '')
   const [carbs, setCarbs] = useState(initial ? String(initial.carbs_per_100g) : '')
   const [fat, setFat] = useState(initial ? String(initial.fat_per_100g) : '')
+  const [nutritionUnit, setNutritionUnit] = useState<IngredientUnit>(
+    initial?.nutrition_unit ?? 'gramos',
+  )
   const [packagePrice, setPackagePrice] = useState(
     initial?.package_price != null ? String(initial.package_price) : '',
   )
@@ -36,6 +39,22 @@ export function IngredientFormModal({ initial, onSave, onDelete, onClose }: Prop
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
+
+  const nutritionLabel = nutritionUnit === 'unidad' ? 'unidad' : `100 ${nutritionUnit === 'ml' ? 'ml' : 'g'}`
+
+  function applyEggPreset() {
+    setName('Huevo de gallina (unidad mediana)')
+    setCategory('huevo')
+    setNutritionUnit('unidad')
+    setUnit('unidad')
+    setKcal('70')
+    setProtein('6,3')
+    setCarbs('0,4')
+    setFat('4,8')
+    setPackageSize('12')
+    setPackageUnit('unidad')
+    setGramsPerUnit('50')
+  }
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
@@ -88,6 +107,7 @@ export function IngredientFormModal({ initial, onSave, onDelete, onClose }: Prop
         protein_per_100g: toNum(protein),
         carbs_per_100g: toNum(carbs),
         fat_per_100g: toNum(fat),
+        nutrition_unit: nutritionUnit,
         price_per_kg: computePricePerKg() ?? initial?.price_per_kg ?? null,
         default_unit: unit,
         grams_per_unit: toNumOrNull(gramsPerUnit),
@@ -162,8 +182,34 @@ export function IngredientFormModal({ initial, onSave, onDelete, onClose }: Prop
               </select>
             </label>
 
+            {!initial && category === 'huevo' && (
+              <button
+                type="button"
+                onClick={applyEggPreset}
+                className="rounded-xl border border-track bg-surface px-3 py-2 text-left text-sm font-bold text-accent"
+              >
+                Usar valores orientativos de huevo mediano
+              </button>
+            )}
+
+            <label className="flex flex-col gap-1 text-sm text-ink">
+              Los valores nutricionales están expresados por
+              <select
+                className="rounded-xl bg-surface px-3 py-2 text-base text-ink"
+                value={nutritionUnit}
+                onChange={(event) => {
+                  const nextUnit = event.target.value as IngredientUnit
+                  setNutritionUnit(nextUnit)
+                  setUnit(nextUnit)
+                }}
+              >
+                <option value="gramos">100 g</option>
+                <option value="ml">100 ml</option>
+                <option value="unidad">1 unidad</option>
+              </select>
+            </label>
             <p className="mt-1 text-xs font-bold tracking-wide text-muted uppercase">
-              Por 100 {unit === 'ml' ? 'ml' : 'g'}
+              Valores por {nutritionLabel}
             </p>
             <div className="grid grid-cols-2 gap-3">
               <label className="flex flex-col gap-1 text-sm text-ink">
@@ -211,15 +257,17 @@ export function IngredientFormModal({ initial, onSave, onDelete, onClose }: Prop
             </div>
 
             <label className="flex flex-col gap-1 text-sm text-ink">
-              Unidad por defecto
+              Unidad al añadir a platos
               <select className="rounded-xl bg-surface px-3 py-2 text-base text-ink" value={unit} onChange={(event) => setUnit(event.target.value as IngredientUnit)}>
-                {INGREDIENT_UNITS.map((option) => (
+                {INGREDIENT_UNITS.filter((option) => (
+                  option.value === nutritionUnit || (nutritionUnit === 'gramos' && option.value === 'unidad' && initial?.grams_per_unit != null)
+                )).map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
             </label>
 
-            {unit === 'unidad' && (
+            {unit === 'unidad' && nutritionUnit !== 'unidad' && (
               <label className="flex flex-col gap-1 text-sm text-ink">
                 Gramos por unidad (ej. 1 huevo = 60 g)
                 <input inputMode="decimal" className="rounded-xl bg-surface px-3 py-2 text-base text-ink" value={gramsPerUnit} onChange={(event) => setGramsPerUnit(event.target.value)} />

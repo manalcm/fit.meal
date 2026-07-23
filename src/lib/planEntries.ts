@@ -66,7 +66,7 @@ export type HouseholdPlanInput =
     })
 
 const ENTRY_SELECT =
-  '*, meal:meals(*, meal_ingredients(quantity_grams, ingredient:ingredients(*))), ingredient:ingredients(*)'
+  '*, meal:meals(*, meal_ingredients(quantity_grams, quantity, unit, ingredient:ingredients(*))), ingredient:ingredients(*)'
 
 interface RawEntryRow extends PlanEntry {
   meal: (MealWithLines & { meal_ingredients: MealWithLines['lines'] }) | null

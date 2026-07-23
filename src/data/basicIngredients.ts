@@ -10,6 +10,7 @@ export interface BasicIngredient {
   price_per_kg: number | null
   default_unit: IngredientUnit
   grams_per_unit: number | null
+  nutrition_unit?: IngredientUnit
   package_price?: number | null
   package_size?: number | null
   package_unit?: IngredientUnit | null
@@ -17,7 +18,7 @@ export interface BasicIngredient {
 
 // 25 básicos españoles para arrancar sin tener que rellenar nada a mano.
 export const BASIC_INGREDIENTS: BasicIngredient[] = [
-  { name: 'Huevo', category: 'huevo', kcal_per_100g: 155, protein_per_100g: 13, carbs_per_100g: 1.1, fat_per_100g: 11, price_per_kg: 3.5, default_unit: 'unidad', grams_per_unit: 60 },
+  { name: 'Huevo de gallina (unidad mediana)', category: 'huevo', kcal_per_100g: 70, protein_per_100g: 6.3, carbs_per_100g: 0.4, fat_per_100g: 4.8, price_per_kg: null, default_unit: 'unidad', grams_per_unit: 50, nutrition_unit: 'unidad', package_size: 12, package_unit: 'unidad' },
   { name: 'Pechuga de pollo', category: 'carne', kcal_per_100g: 165, protein_per_100g: 31, carbs_per_100g: 0, fat_per_100g: 3.6, price_per_kg: 6.5, default_unit: 'gramos', grams_per_unit: null },
   { name: 'Arroz blanco', category: 'cereal_pan', kcal_per_100g: 349, protein_per_100g: 7.1, carbs_per_100g: 78, fat_per_100g: 0.6, price_per_kg: 1.2, default_unit: 'gramos', grams_per_unit: null },
   { name: 'Pasta', category: 'cereal_pan', kcal_per_100g: 353, protein_per_100g: 12.5, carbs_per_100g: 71.2, fat_per_100g: 1.5, price_per_kg: 1.3, default_unit: 'gramos', grams_per_unit: null },

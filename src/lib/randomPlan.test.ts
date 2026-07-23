@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   chooseSurpriseCandidate,
+  chooseSurpriseDay,
   remainingMacrosForPerson,
   validSurpriseCandidates,
 } from './randomPlan'
@@ -112,5 +113,12 @@ describe('Sorpréndeme por macros restantes', () => {
     const second = meal('Segundo', ['desayuno'])
     expect(chooseSurpriseCandidate([first, second], 'desayuno', [person], [], () => 0)?.meal.id).toBe('Primero')
     expect(chooseSurpriseCandidate([first, second], 'desayuno', [person], [], () => 0.999)?.meal.id).toBe('Segundo')
+  })
+
+  it('construye el día en orden sin superar los macros acumulados', () => {
+    const person = makePerson({ target_kcal: 600, target_protein: 100, target_carbs: 100, target_fat: 100 })
+    const slots = chooseSurpriseDay([meal('Desayuno', ['desayuno']), meal('Comida', ['almuerzo'])], [person], person.id, false, [], () => 0)
+    expect(slots[0].candidate?.meal.name).toBe('Desayuno')
+    expect(slots[1].candidate?.meal.name).toBe('Comida')
   })
 })

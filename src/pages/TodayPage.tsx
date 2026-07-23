@@ -36,10 +36,6 @@ export function TodayPage() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [manualRequest, setManualRequest] = useState<{
-    mealType: MealType
-    token: number
-  } | null>(null)
 
   async function reloadEntries() {
     if (!person) return
@@ -69,16 +65,6 @@ export function TodayPage() {
       .catch((caught) => setError(getErrorMessage(caught)))
       .finally(() => setLoading(false))
   }, [person, todayISO])
-
-  useEffect(() => {
-    if (!manualRequest) return
-    const timer = window.setTimeout(() => {
-      document
-        .getElementById(`plan-composer-${manualRequest.mealType}`)
-        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }, 0)
-    return () => window.clearTimeout(timer)
-  }, [manualRequest])
 
   async function handleAdd(mealType: MealType, item: PlanComposerItem) {
     await householdActions.addItem(todayISO, mealType, item)
@@ -123,13 +109,6 @@ export function TodayPage() {
       .filter((created) => created.person_id !== person?.id)
       .map((created) => created.id)
     householdActions.announceHouseholdCopies(copyIds, result.skipped)
-  }
-
-  function handleManual(mealType: MealType) {
-    setManualRequest((current) => ({
-      mealType,
-      token: (current?.token ?? 0) + 1,
-    }))
   }
 
   const dayTotals = useMemo(
@@ -192,9 +171,6 @@ export function TodayPage() {
                     ingredients={ingredients}
                     people={people}
                     currentPersonId={person.id}
-                    openRequest={
-                      manualRequest?.mealType === mealType ? manualRequest.token : 0
-                    }
                     onAdd={(item) => handleAdd(mealType, item)}
                     onEatingOut={(personIds) => handleEatingOut(mealType, personIds)}
                   />
@@ -209,7 +185,6 @@ export function TodayPage() {
             people={people}
             currentPersonId={person.id}
             onAdded={handleSurpriseAdded}
-            onManual={handleManual}
           />
         </div>
       )}

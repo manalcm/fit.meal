@@ -10,15 +10,63 @@ export interface Totals {
 
 const ZERO_TOTALS: Totals = { kcal: 0, protein: 0, carbs: 0, fat: 0, cost: 0 }
 
-export function scaleIngredient(ingredient: Ingredient, grams: number): Totals {
-  const factor = grams / 100
+export function scaleIngredient(ingredient: Ingredient, quantity: number): Totals {
+  const factor = quantity / 100
   return {
     kcal: ingredient.kcal_per_100g * factor,
     protein: ingredient.protein_per_100g * factor,
     carbs: ingredient.carbs_per_100g * factor,
     fat: ingredient.fat_per_100g * factor,
-    cost: ingredient.price_per_kg != null ? (grams / 1000) * ingredient.price_per_kg : 0,
+    cost: ingredient.price_per_kg != null ? (quantity / 1000) * ingredient.price_per_kg : 0,
   }
+}
+
+/** Calcula un ingrediente sin asumir que todo se pesa. */
+export function computeIngredientQuantityTotals(
+  ingredient: Ingredient,
+  quantity: number,
+  unit: IngredientUnit,
+): Totals {
+  if (!Number.isFinite(quantity) || quantity <= 0) return { ...ZERO_TOTALS }
+
+  const nutritionUnit = ingredient.nutrition_unit ?? 'gramos'
+  let nutritionQuantity: number | null = null
+  let divisor = nutritionUnit === 'unidad' ? 1 : 100
+
+  if (unit === nutritionUnit) {
+    nutritionQuantity = quantity
+  } else if (
+    nutritionUnit === 'gramos' &&
+    unit === 'unidad' &&
+    ingredient.grams_per_unit != null &&
+    ingredient.grams_per_unit > 0
+  ) {
+    nutritionQuantity = quantity * ingredient.grams_per_unit
+    divisor = 100
+  }
+
+  if (nutritionQuantity == null) return { ...ZERO_TOTALS }
+  const factor = nutritionQuantity / divisor
+  const totals: Totals = {
+    kcal: ingredient.kcal_per_100g * factor,
+    protein: ingredient.protein_per_100g * factor,
+    carbs: ingredient.carbs_per_100g * factor,
+    fat: ingredient.fat_per_100g * factor,
+    cost: 0,
+  }
+
+  if (
+    ingredient.package_price != null && ingredient.package_price > 0 &&
+    ingredient.package_size != null && ingredient.package_size > 0 &&
+    ingredient.package_unit === unit
+  ) {
+    totals.cost = quantity / ingredient.package_size * ingredient.package_price
+  } else if (unit === 'gramos' && ingredient.price_per_kg != null) {
+    totals.cost = quantity / 1000 * ingredient.price_per_kg
+  } else if (unit === 'unidad' && ingredient.grams_per_unit != null && ingredient.price_per_kg != null) {
+    totals.cost = quantity * ingredient.grams_per_unit / 1000 * ingredient.price_per_kg
+  }
+  return totals
 }
 
 export function sumTotals(items: Totals[]): Totals {
@@ -45,13 +93,17 @@ export function scaleTotals(totals: Totals, factor: number): Totals {
 }
 
 export function computeMealTotals(
-  lines: { ingredient: Ingredient; quantity_grams: number }[],
+  lines: { ingredient: Ingredient; quantity_grams: number; quantity?: number; unit?: IngredientUnit }[],
 ): Totals {
-  return sumTotals(lines.map((line) => scaleIngredient(line.ingredient, line.quantity_grams)))
+  return sumTotals(lines.map((line) => computeIngredientQuantityTotals(
+    line.ingredient,
+    line.quantity ?? line.quantity_grams,
+    line.unit ?? 'gramos',
+  )))
 }
 
 export function computeMealPerServingTotals(
-  lines: { ingredient: Ingredient; quantity_grams: number }[],
+  lines: { ingredient: Ingredient; quantity_grams: number; quantity?: number; unit?: IngredientUnit }[],
   recipeServings: number,
 ): Totals {
   if (!Number.isFinite(recipeServings) || recipeServings <= 0) return { ...ZERO_TOTALS }
@@ -81,24 +133,7 @@ export function computeLooseIngredientTotals(
     return { ...ZERO_TOTALS }
   }
 
-  const nutritionBaseQuantity = looseQuantityInNutritionalGrams(ingredient, quantity, unit)
-  const totals = scaleIngredient(ingredient, nutritionBaseQuantity)
-
-  // For ingredients configured in ml, nutritional values are interpreted per
-  // 100 ml. This is a same-unit scale, not an ml-to-gram conversion.
-  if (unit === 'ml') totals.cost = 0
-
-  if (
-    ingredient.package_price != null &&
-    ingredient.package_price > 0 &&
-    ingredient.package_size != null &&
-    ingredient.package_size > 0 &&
-    ingredient.package_unit === unit
-  ) {
-    totals.cost = quantity / ingredient.package_size * ingredient.package_price
-  }
-
-  return totals
+  return computeIngredientQuantityTotals(ingredient, quantity, unit)
 }
 
 export function ingredientQuantityPerServing(quantity: number, recipeServings: number): number {
@@ -131,7 +166,7 @@ interface PlanQuantity {
  * Las entradas históricas no convertibles conservan su instantánea original.
  */
 export function computePlanEntryTotals(
-  mealLines: { ingredient: Ingredient; quantity_grams: number }[],
+  mealLines: { ingredient: Ingredient; quantity_grams: number; quantity?: number; unit?: IngredientUnit }[],
   entry: PlanQuantity,
   recipeServings = 1,
 ): Totals {
@@ -161,7 +196,7 @@ interface PlanEntryDetails extends PlanQuantity {
   exact_unit: IngredientUnit | null
   meal: {
     recipe_servings: number
-    lines: { ingredient: Ingredient; quantity_grams: number }[]
+    lines: { ingredient: Ingredient; quantity_grams: number; quantity?: number; unit?: IngredientUnit }[]
   } | null
   ingredient: Ingredient | null
 }

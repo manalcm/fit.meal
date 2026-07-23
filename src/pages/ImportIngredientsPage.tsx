@@ -151,6 +151,7 @@ export function ImportIngredientsPage() {
       const r = await bulkUpsertIngredients(
         BASIC_INGREDIENTS.map((b) => ({
           ...b,
+          nutrition_unit: b.nutrition_unit ?? 'gramos',
           in_pantry: false,
           package_price: b.package_price ?? null,
           package_size: b.package_size ?? null,

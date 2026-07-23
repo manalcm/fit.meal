@@ -64,7 +64,7 @@ describe('cálculos por ración', () => {
 describe('alimentos sueltos y Comemos fuera', () => {
   it('conserva cantidades exactas en gramos y mililitros', () => {
     const grams = makeIngredient({ kcal_per_100g: 100, default_unit: 'gramos' })
-    const millilitres = makeIngredient({ kcal_per_100g: 60, default_unit: 'ml' })
+    const millilitres = makeIngredient({ kcal_per_100g: 60, default_unit: 'ml', nutrition_unit: 'ml' })
     expect(computeLooseIngredientTotals(grams, 125.5, 'gramos').kcal).toBeCloseTo(125.5)
     expect(computeLooseIngredientTotals(millilitres, 250, 'ml').kcal).toBeCloseTo(150)
   })
@@ -72,6 +72,7 @@ describe('alimentos sueltos y Comemos fuera', () => {
   it('calcula el coste consumido desde el envase sin convertir unidades', () => {
     const milk = makeIngredient({
       default_unit: 'ml',
+      nutrition_unit: 'ml',
       package_unit: 'ml',
       package_size: 1000,
       package_price: 1,
@@ -88,6 +89,24 @@ describe('alimentos sueltos y Comemos fuera', () => {
     expect(computeLooseIngredientTotals(milk, 250, 'ml').cost).toBeCloseTo(0.25)
     expect(computeLooseIngredientTotals(eggs, 2, 'unidad').cost).toBeCloseTo(0.4)
     expect(computeLooseIngredientTotals(milk, 250, 'gramos').cost).toBe(0)
+  })
+  it('calcula un huevo por unidad sin pedir gramos', () => {
+    const egg = makeIngredient({
+      kcal_per_100g: 70,
+      protein_per_100g: 6.3,
+      carbs_per_100g: 0.4,
+      fat_per_100g: 4.8,
+      nutrition_unit: 'unidad',
+      default_unit: 'unidad',
+      grams_per_unit: 50,
+      package_unit: 'unidad',
+      package_size: 12,
+      package_price: 2.4,
+    })
+    const total = computeLooseIngredientTotals(egg, 2, 'unidad')
+    expect(total.kcal).toBe(140)
+    expect(total.protein).toBe(12.6)
+    expect(total.cost).toBeCloseTo(0.4)
   })
   it('convierte unidades solo con el peso explícito configurado', () => {
     const egg = makeIngredient({

@@ -115,6 +115,7 @@ export function PlanEntryComposer({
         }
         if (
           selectedIngredient.default_unit === 'unidad' &&
+          selectedIngredient.nutrition_unit !== 'unidad' &&
           (!selectedIngredient.grams_per_unit || selectedIngredient.grams_per_unit <= 0)
         ) {
           throw new Error(
